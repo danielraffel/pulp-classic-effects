@@ -16,10 +16,13 @@ out the SDK contract surface.
 | Effect | DSP | Test | Notes |
 |---|---|---|---|
 | Tremolo | ✅ | ✅ | Periodic amplitude modulation (sine/triangle/square LFO) |
+| Ring Mod | ✅ | ✅ | Sine-carrier ring modulation with wet/dry mix |
+| Delay | ✅ | ✅ | Feedback delay line with wet/dry mix |
+| Vibrato | ✅ | ✅ | LFO-swept fractional delay (pitch modulation) |
 | MIDI Transpose | ✅ | ✅ | Pure MIDI effect — semitone note shifter, passes CC/bend/SysEx through |
 | MonoSynth | ✅ | ✅ | Minimal monophonic instrument (oscillator + ADSR), MIDI in → audio out |
 | gui-zoo | ✅ | ✅ | UI fixture — widgets/layout/Skia paint with a deterministic screenshot baseline |
-| _more effects_ | planned | planned | delay, vibrato, flanger, chorus, ping-pong, parametric EQ, wah, phaser, ring mod, compressor, … |
+| _more effects_ | planned | planned | flanger, chorus, ping-pong, parametric EQ, wah, phaser, compressor, distortion, panning, robotization, pitch-shift, … |
 
 ## Credits
 

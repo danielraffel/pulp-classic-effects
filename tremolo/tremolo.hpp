@@ -49,7 +49,7 @@ public:
             .id = kRate,
             .name = "Rate",
             .unit = "Hz",
-            // Skewed so the musically useful low rates get more resolution.
+            // Shaped so the musically useful low rates get more resolution.
             .range = state::ParamRange::with_centre(0.1f, 20.0f, 4.0f, 4.0f),
         });
         store.add_parameter({
