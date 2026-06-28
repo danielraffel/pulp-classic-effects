@@ -18,6 +18,7 @@ out the SDK contract surface.
 | Tremolo | ✅ | ✅ | Periodic amplitude modulation (sine/triangle/square LFO) |
 | MIDI Transpose | ✅ | ✅ | Pure MIDI effect — semitone note shifter, passes CC/bend/SysEx through |
 | MonoSynth | ✅ | ✅ | Minimal monophonic instrument (oscillator + ADSR), MIDI in → audio out |
+| gui-zoo | ✅ | ✅ | UI fixture — widgets/layout/Skia paint with a deterministic screenshot baseline |
 | _more effects_ | planned | planned | delay, vibrato, flanger, chorus, ping-pong, parametric EQ, wah, phaser, ring mod, compressor, … |
 
 ## Attribution & clean-room policy
