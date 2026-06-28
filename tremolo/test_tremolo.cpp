@@ -67,6 +67,21 @@ TEST_CASE("Tremolo at full depth modulates amplitude between ~0 and ~1",
     REQUIRE(v::check_peak_below(out, 1.0001f)); // never amplifies past unity
 }
 
+TEST_CASE("Tremolo full-depth triangle at low rate never exceeds unity",
+          "[tremolo]") {
+    // The band-limited triangle's leaky integrator can overshoot ±1 at startup;
+    // full-depth gain must still stay <= unity (regression for the LFO clamp).
+    format::HeadlessHost host(create_tremolo);
+    host.prepare(48000.0, 512);
+    host.state().set_value(pulp::examples::classic::kWaveform, 1.0f); // triangle
+    host.state().set_value(kRate, 0.1f);                              // slow
+    host.state().set_value(kDepth, 100.0f);
+
+    auto out = render_constant(host, 8192);
+    REQUIRE(v::check_finite(out));
+    REQUIRE(v::check_peak_below(out, 1.0001f));
+}
+
 TEST_CASE("Tremolo at zero depth is unity gain", "[tremolo]") {
     format::HeadlessHost host(create_tremolo);
     host.prepare(48000.0, 512);

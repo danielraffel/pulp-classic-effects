@@ -80,6 +80,56 @@ TEST_CASE("MonoSynth produces sound on note-on and decays after note-off",
     REQUIRE(tail < sustaining_peak * 0.1f);
 }
 
+TEST_CASE("MonoSynth note-off on a different channel does not release",
+          "[mono-synth]") {
+    format::HeadlessHost host(create_mono_synth);
+    host.prepare(48000.0, 512);
+    host.state().set_value(kAttack, 0.001f);
+    host.state().set_value(kSustain, 0.8f);
+
+    auto on = midi::MidiEvent::note_on(0, 60, 100);  // channel 0
+    render(host, 512, &on);
+
+    // A note-off for the same note on channel 1 must NOT steal the voice.
+    auto wrong = midi::MidiEvent::note_off(1, 60, 0);
+    auto still = render(host, 512, &wrong);
+    REQUIRE(peak(still) > 0.1f);  // voice still sounding
+
+    // The matching channel-0 note-off does release it.
+    auto right = midi::MidiEvent::note_off(0, 60, 0);
+    render(host, 512, &right);
+    host.state().set_value(kRelease, 0.01f);
+    float tail = 1.0f;
+    for (int b = 0; b < 30; ++b) tail = peak(render(host, 512, nullptr));
+    REQUIRE(tail < 0.1f);
+}
+
+TEST_CASE("MonoSynth handles unsorted MIDI input", "[mono-synth]") {
+    format::HeadlessHost host(create_mono_synth);
+    host.prepare(48000.0, 512);
+    host.state().set_value(kAttack, 0.001f);
+    host.state().set_value(kSustain, 0.8f);
+
+    // Add events OUT of offset order: note-off (late) before note-on (early).
+    midi::MidiBuffer in;
+    auto off = midi::MidiEvent::note_off(0, 60, 0); off.sample_offset = 400;
+    auto on = midi::MidiEvent::note_on(0, 60, 100); on.sample_offset = 10;
+    in.add(off);
+    in.add(on);
+
+    audio::Buffer<float> a(2, 512), b(2, 512);
+    const float* ip[2] = {a.channel(0).data(), a.channel(1).data()};
+    audio::BufferView<const float> iv(ip, 2, 512);
+    auto ov = b.view();
+    midi::MidiBuffer mout;
+    host.process(ov, iv, in, mout, format::ProcessContext{});
+
+    // Despite the unsorted input, the note sounds between offsets 10 and 400.
+    bool sounded = false;
+    for (int i = 100; i < 380; ++i) if (std::fabs(b.channel(0)[i]) > 0.05f) sounded = true;
+    REQUIRE(sounded);
+}
+
 TEST_CASE("MonoSynth state round-trips", "[mono-synth]") {
     format::HeadlessHost host(create_mono_synth);
     host.prepare(48000.0, 256);

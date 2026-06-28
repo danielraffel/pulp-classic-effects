@@ -94,6 +94,7 @@ public:
                 auto out = output.channel(ch);
                 for (std::size_t i = 0; i < frames; ++i) out[i] = in[i];
             }
+            clear_extra_outputs(output, channels);
             return;
         }
 
@@ -105,16 +106,31 @@ public:
         // One LFO drives all channels so they modulate in phase. Compute the
         // per-sample gain once, then apply across channels.
         for (std::size_t i = 0; i < frames; ++i) {
-            const float bipolar = lfo_.next();             // -1..1
+            // Clamp the LFO: the band-limited triangle's leaky integrator can
+            // briefly overshoot ±1 at startup, which would otherwise push
+            // full-depth gain above unity.
+            const float bipolar = std::clamp(lfo_.next(), -1.0f, 1.0f);
             const float unipolar = 0.5f * (bipolar + 1.0f); // 0..1
             const float gain = (1.0f - depth) + depth * unipolar;
             for (std::size_t ch = 0; ch < channels; ++ch) {
                 output.channel(ch)[i] = input.channel(ch)[i] * gain;
             }
         }
+        clear_extra_outputs(output, channels);
     }
 
 private:
+    // Output buses may have more channels than the input; zero any the effect
+    // didn't write so the host never sees stale buffer contents.
+    static void clear_extra_outputs(audio::BufferView<float>& output,
+                                    std::size_t written) {
+        const std::size_t frames = output.num_samples();
+        for (std::size_t ch = written; ch < output.num_channels(); ++ch) {
+            auto out = output.channel(ch);
+            for (std::size_t i = 0; i < frames; ++i) out[i] = 0.0f;
+        }
+    }
+
     static signal::Oscillator::Waveform waveform_from_param(float value) {
         switch (static_cast<int>(value + 0.5f)) {
             case 1:  return signal::Oscillator::Waveform::triangle;

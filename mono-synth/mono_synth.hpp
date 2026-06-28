@@ -86,14 +86,17 @@ public:
                          state().get_value(kRelease)});
 
         const std::size_t frames = output.num_samples();
+        // Sort by sample offset ourselves — HeadlessHost (and not every adapter)
+        // guarantees ordering. Then fire each event once its (clamped) offset
+        // has been reached, using <= so an out-of-range/negative offset still
+        // fires at sample 0 rather than being silently dropped.
+        midi_in.sort();
         std::size_t event = 0;
         const std::size_t n_events = midi_in.size();
 
         for (std::size_t i = 0; i < frames; ++i) {
-            // Apply any MIDI events scheduled at this sample offset (buffer is
-            // sorted by the host/harness before process()).
             while (event < n_events &&
-                   static_cast<std::size_t>(std::max(0, midi_in[event].sample_offset)) == i) {
+                   static_cast<std::size_t>(std::max(0, midi_in[event].sample_offset)) <= i) {
                 apply_event(midi_in[event]);
                 ++event;
             }
@@ -110,13 +113,16 @@ private:
     void apply_event(const midi::MidiEvent& ev) {
         if (ev.is_note_on() && ev.velocity() > 0) {
             active_note_ = ev.note();
+            active_channel_ = ev.channel();
             osc_.set_frequency(note_to_hz(ev.note()));
             velocity_gain_ = ev.velocity() / 127.0f;
             env_.note_on();
         } else if (ev.is_note_off() ||
                    (ev.is_note_on() && ev.velocity() == 0)) {
-            // Only release if the note-off matches the sounding note (mono).
-            if (ev.note() == active_note_) {
+            // Only release if the note-off matches the sounding note AND channel
+            // (a note-off for the same number on another channel must not steal
+            // this voice's release).
+            if (ev.note() == active_note_ && ev.channel() == active_channel_) {
                 env_.note_off();
                 active_note_ = -1;
             }
@@ -139,6 +145,7 @@ private:
     signal::Oscillator osc_;
     signal::Adsr env_;
     int active_note_ = -1;
+    int active_channel_ = -1;
     float velocity_gain_ = 0.0f;
 };
 
