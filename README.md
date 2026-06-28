@@ -7,7 +7,9 @@ available), with a headless test that asserts the actual DSP behavior.
 
 The goal is a legible, recognizable showcase of "write one `Processor`, get
 every plugin format" — using effects everyone knows (tremolo, delay, chorus,
-flanger, phaser, wah, compressor, …) as the worked examples.
+flanger, phaser, wah, compressor, …) as the worked examples, alongside a couple
+of small companion examples (a MIDI utility and a minimal instrument) that round
+out the SDK contract surface.
 
 ## Status
 
@@ -15,6 +17,7 @@ flanger, phaser, wah, compressor, …) as the worked examples.
 |---|---|---|---|
 | Tremolo | ✅ | ✅ | Periodic amplitude modulation (sine/triangle/square LFO) |
 | MIDI Transpose | ✅ | ✅ | Pure MIDI effect — semitone note shifter, passes CC/bend/SysEx through |
+| MonoSynth | ✅ | ✅ | Minimal monophonic instrument (oscillator + ADSR), MIDI in → audio out |
 | _more effects_ | planned | planned | delay, vibrato, flanger, chorus, ping-pong, parametric EQ, wah, phaser, ring mod, compressor, … |
 
 ## Attribution & clean-room policy

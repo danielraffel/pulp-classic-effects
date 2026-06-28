@@ -17,3 +17,4 @@ enable_testing()
 
 add_subdirectory(tremolo)
 add_subdirectory(midi-transpose)
+add_subdirectory(mono-synth)
