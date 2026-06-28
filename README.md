@@ -40,6 +40,13 @@ This mirrors [Pulp's own licensing and clean-room discipline](https://www.genero
 "Implementation is from specs, documentation, and original design — never from
 studying proprietary or restrictively-licensed source code."
 
+**Acknowledgement.** We learned about this textbook and this curated set of
+classic effects from [truce-audio/reiss-mcpherson-effects](https://github.com/truce-audio/reiss-mcpherson-effects),
+which catalogues the same effects on a different framework. We used it (and the
+book it points to) as inspiration for *which* effects to build and how a clean
+example suite feels — not as a code source. Our DSP is written independently
+from the textbook math and Pulp's own primitives.
+
 ## License
 
 MIT — see [LICENSE](LICENSE). The textbook above is a published reference work;
