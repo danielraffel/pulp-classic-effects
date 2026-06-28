@@ -14,6 +14,7 @@ flanger, phaser, wah, compressor, …) as the worked examples.
 | Effect | DSP | Test | Notes |
 |---|---|---|---|
 | Tremolo | ✅ | ✅ | Periodic amplitude modulation (sine/triangle/square LFO) |
+| MIDI Transpose | ✅ | ✅ | Pure MIDI effect — semitone note shifter, passes CC/bend/SysEx through |
 | _more effects_ | planned | planned | delay, vibrato, flanger, chorus, ping-pong, parametric EQ, wah, phaser, ring mod, compressor, … |
 
 ## Attribution & clean-room policy

@@ -16,3 +16,4 @@ option(PULP_BUILD_TESTS "Build the example tests" ON)
 enable_testing()
 
 add_subdirectory(tremolo)
+add_subdirectory(midi-transpose)
