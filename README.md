@@ -21,37 +21,17 @@ out the SDK contract surface.
 | gui-zoo | ✅ | ✅ | UI fixture — widgets/layout/Skia paint with a deterministic screenshot baseline |
 | _more effects_ | planned | planned | delay, vibrato, flanger, chorus, ping-pong, parametric EQ, wah, phaser, ring mod, compressor, … |
 
-## Attribution & clean-room policy
+## Credits
 
-These effects implement **standard, well-documented DSP from the academic
-literature**. The canonical algorithmic reference is:
-
-> Joshua D. Reiss & Andrew P. McPherson, *Audio Effects: Theory, Implementation
-> and Application* (CRC Press, 2014).
-
-Pulp's implementations are **independent and clean-room**: each effect is written
-from the published textbook math and Pulp's own `pulp::signal` primitives
-(oscillators, delay lines, filters, dynamics). No third-party effect source code
-was read, transcribed, or ported — we learned the *shape* of these classic
-effects; the implementation is our own. Where a specific effect leans on a public
-algorithm, that lineage is noted in the effect's own `README.md`.
-
-This mirrors [Pulp's own licensing and clean-room discipline](https://www.generouscorp.com/pulp/licensing.html):
-"Implementation is from specs, documentation, and original design — never from
-studying proprietary or restrictively-licensed source code."
-
-**Acknowledgement.** We learned about this textbook and this curated set of
-classic effects from [truce-audio/reiss-mcpherson-effects](https://github.com/truce-audio/reiss-mcpherson-effects),
-which catalogues the same effects on a different framework. We used it (and the
-book it points to) as inspiration for *which* effects to build and how a clean
-example suite feels — not as a code source. Our DSP is written independently
-from the textbook math and Pulp's own primitives.
+Inspired by [truce-audio/reiss-mcpherson-effects](https://github.com/truce-audio/reiss-mcpherson-effects)
+and the textbook it draws from — Reiss & McPherson, *Audio Effects: Theory,
+Implementation and Application* (CRC Press) — and the example catalog in
+[truce-audio/truce](https://github.com/truce-audio/truce). See also
+[Pulp licensing](https://www.generouscorp.com/pulp/licensing.html).
 
 ## License
 
-MIT — see [LICENSE](LICENSE). The textbook above is a published reference work;
-citing it is scholarship, not a code dependency. This repository bundles no
-third-party effect code.
+MIT — see [LICENSE](LICENSE).
 
 ## Building
 
