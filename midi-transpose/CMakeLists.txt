@@ -1,4 +1,4 @@
-# MIDI Transpose — semitone note shifter (clean-room MIDI effect; see README.md).
+# MIDI Transpose — semitone note shifter. See README.md.
 
 if(PULP_BUILD_TESTS)
     add_executable(midi-transpose-test test_midi_transpose.cpp)

@@ -1,4 +1,4 @@
-# Tremolo — periodic amplitude modulation (clean-room; see README.md).
+# Tremolo — periodic amplitude modulation. See README.md.
 
 if(PULP_BUILD_TESTS)
     add_executable(tremolo-test test_tremolo.cpp)

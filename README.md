@@ -23,15 +23,13 @@ out the SDK contract surface.
 
 ## Credits
 
-Inspired by [truce-audio/reiss-mcpherson-effects](https://github.com/truce-audio/reiss-mcpherson-effects)
-and the textbook it draws from — Reiss & McPherson, *Audio Effects: Theory,
-Implementation and Application* (CRC Press) — and the example catalog in
-[truce-audio/truce](https://github.com/truce-audio/truce). See also
-[Pulp licensing](https://www.generouscorp.com/pulp/licensing.html).
+Inspired by truce-audio's [reiss-mcpherson-effects](https://github.com/truce-audio/reiss-mcpherson-effects)
+and [truce](https://github.com/truce-audio/truce), and the *Audio Effects* book
+by Reiss & McPherson.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE). See also [Pulp licensing](https://www.generouscorp.com/pulp/licensing.html).
 
 ## Building
 

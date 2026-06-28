@@ -23,10 +23,3 @@ g(t) = (1 - d) + d · m(t)
 so `d = 0` is unity (no-op) and `d = 1` sweeps the gain over the full `[0,1]`
 range each LFO cycle. One LFO drives all channels in phase. This is standard
 textbook amplitude modulation.
-
-## Reference-Lineage
-
-Clean-room. Implemented from the textbook description of amplitude-modulation
-tremolo (Reiss & McPherson, *Audio Effects: Theory, Implementation and
-Application*, CRC Press) and Pulp's own `pulp::signal::Oscillator`. No
-third-party effect source was read or transcribed.

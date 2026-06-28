@@ -1,4 +1,4 @@
-# MonoSynth — a minimal monophonic instrument (clean-room; see README.md).
+# MonoSynth — a minimal monophonic instrument. See README.md.
 
 if(PULP_BUILD_TESTS)
     add_executable(mono-synth-test test_mono_synth.cpp)

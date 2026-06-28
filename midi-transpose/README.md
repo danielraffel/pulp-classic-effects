@@ -13,9 +13,3 @@ than wrapped.
 - A stepped integer parameter (`Semitones`, −24..+24).
 - Headless MIDI assertions via `pulp/format/validation_assertions.hpp`
   (`check_midi_events_equal`, including the SysEx sidecar pass-through).
-
-## Reference-Lineage
-
-Clean-room. Transposition is trivially standard MIDI processing (add an offset to
-the note number); this is an independent implementation on Pulp's `midi` types.
-No third-party source was read or transcribed.

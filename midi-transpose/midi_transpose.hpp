@@ -2,7 +2,7 @@
 
 // MIDI Transpose — shift incoming note pitches by a semitone offset.
 //
-// A minimal clean-room MIDI effect: it reads note-on/note-off messages from the
+// A minimal MIDI effect: it reads note-on/note-off messages from the
 // input, adds a transpose offset (in semitones, clamped to the 0..127 note
 // range) and emits them on the output; every other message (CC, pitch bend,
 // program change, SysEx) passes through unchanged. There is no creative DSP

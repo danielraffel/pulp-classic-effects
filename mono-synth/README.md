@@ -21,9 +21,3 @@ bit-exact. A skewed/tapered range only round-trips through the host's normalized
 domain to float precision, which a strict state-determinism check (and DAW A/B
 recall) will notice. For a teaching example, deterministic state beats a tapered
 control feel.
-
-## Reference-Lineage
-
-Clean-room. The "oscillator × ADSR envelope" voice is textbook subtractive
-synthesis; this is an independent implementation on Pulp's own `pulp::signal`
-primitives. No third-party source was read or transcribed.

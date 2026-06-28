@@ -24,9 +24,3 @@ The test SKIPs cleanly where the Skia raster backend isn't available, so a
 Skia-less build stays green. Re-bake the baseline only intentionally (render
 `build_gui_zoo()` to `baseline.png`) — per-OS baselines are fine if a platform's
 font/AA differs.
-
-## Reference-Lineage
-
-Clean-room. A widget-gallery fixture is a generic SDK demonstration; this is an
-independent implementation on Pulp's own view/widget API. No third-party source
-was read or transcribed.
