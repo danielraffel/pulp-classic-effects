@@ -63,7 +63,9 @@ inline std::unique_ptr<view::View> build_effect_editor(state::StateStore& store,
     root->flex().gap = 12.0f;
     root->flex().padding = kPad;
 
-    const float width = 2 * kPad + cols * kCell + (cols - 1) * kGap;
+    // Min width so the title/subtitle fit even for 0/1-knob panels.
+    float width = 2 * kPad + cols * kCell + (cols - 1) * kGap;
+    if (width < 360.0f) width = 360.0f;
     const float height = 2 * kPad + 26.0f + 12.0f + 16.0f + 12.0f
                        + rows * kRowH + (rows - 1) * kGap
                        + (spec.has_bypass ? 12.0f + 28.0f : 0.0f);

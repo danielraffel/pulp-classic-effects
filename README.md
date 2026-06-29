@@ -13,18 +13,18 @@ out the SDK contract surface.
 
 ## Status
 
-| Effect | DSP | Test | Notes |
-|---|---|---|---|
-| Tremolo | ✅ | ✅ | Periodic amplitude modulation (sine/triangle/square LFO) |
-| Ring Mod | ✅ | ✅ | Sine-carrier ring modulation with wet/dry mix |
-| Delay | ✅ | ✅ | Feedback delay line with wet/dry mix |
-| Vibrato | ✅ | ✅ | LFO-swept fractional delay (pitch modulation) |
-| Chorus | ✅ | ✅ | LFO-swept short delay blended with the dry signal |
-| Comp/Expander | ✅ | ✅ | Stereo-linked dynamics — compress above / expand below, with makeup |
-| Parametric EQ | ✅ | ✅ | Three-band EQ (low shelf / mid bell / high shelf), per-band freq/gain/Q |
-| Wah | ✅ | ✅ | Resonant bandpass swept manually or by the input envelope (auto-wah) |
-| Pitch Shift | ✅ | ✅ | ±12-semitone two-tap crossfading delay-line pitch shifter |
-| _more effects_ | planned | planned | flanger, ping-pong, phaser, distortion, panning, robotization, … |
+| Effect | Editor | DSP | Test | Notes |
+|---|---|---|---|---|
+| Tremolo | <img src="screenshots/tremolo.png" width="220"> | ✅ | ✅ | Periodic amplitude modulation (sine/triangle/square LFO) |
+| Ring Mod | <img src="screenshots/ring-mod.png" width="220"> | ✅ | ✅ | Sine-carrier ring modulation with wet/dry mix |
+| Delay | <img src="screenshots/delay.png" width="220"> | ✅ | ✅ | Feedback delay line with wet/dry mix |
+| Vibrato | <img src="screenshots/vibrato.png" width="220"> | ✅ | ✅ | LFO-swept fractional delay (pitch modulation) |
+| Chorus | <img src="screenshots/chorus.png" width="220"> | ✅ | ✅ | LFO-swept short delay blended with the dry signal |
+| Comp/Expander | <img src="screenshots/compressor-expander.png" width="220"> | ✅ | ✅ | Stereo-linked dynamics — compress above / expand below, with makeup |
+| Parametric EQ | <img src="screenshots/parametric-eq.png" width="220"> | ✅ | ✅ | Three-band EQ (low shelf / mid bell / high shelf), per-band freq/gain/Q |
+| Wah | <img src="screenshots/wah.png" width="220"> | ✅ | ✅ | Resonant bandpass swept manually or by the input envelope (auto-wah) |
+| Pitch Shift | <img src="screenshots/pitch-shift.png" width="220"> | ✅ | ✅ | ±12-semitone two-tap crossfading delay-line pitch shifter |
+| _more effects_ | | planned | planned | flanger, ping-pong, phaser, distortion, panning, robotization, … |
 
 Each effect also ships a dark **Ink & Signal** editor (see `*/*_editor.hpp` and
 `test_editors.cpp`). Companion non-effect examples (a MIDI utility, a minimal
