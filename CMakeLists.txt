@@ -27,3 +27,23 @@ add_subdirectory(pitch-shift)
 add_subdirectory(midi-transpose)
 add_subdirectory(mono-synth)
 add_subdirectory(gui-zoo)
+
+# Combined render check for every effect's dark Ink & Signal editor. Needs
+# pulp::view (Ink & Signal theme + Skia screenshot); skips gracefully at runtime
+# when the Skia raster backend isn't compiled into the SDK build.
+if(PULP_BUILD_TESTS AND TARGET pulp::view)
+    add_executable(editors-test test_editors.cpp)
+    target_link_libraries(editors-test PRIVATE pulp::format pulp::view Catch2::Catch2WithMain)
+    target_include_directories(editors-test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/tremolo
+        ${CMAKE_CURRENT_SOURCE_DIR}/ring-mod
+        ${CMAKE_CURRENT_SOURCE_DIR}/delay
+        ${CMAKE_CURRENT_SOURCE_DIR}/vibrato
+        ${CMAKE_CURRENT_SOURCE_DIR}/chorus
+        ${CMAKE_CURRENT_SOURCE_DIR}/compressor-expander
+        ${CMAKE_CURRENT_SOURCE_DIR}/parametric-eq
+        ${CMAKE_CURRENT_SOURCE_DIR}/wah
+        ${CMAKE_CURRENT_SOURCE_DIR}/pitch-shift)
+    catch_discover_tests(editors-test)
+endif()
