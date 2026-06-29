@@ -24,6 +24,12 @@ out the SDK contract surface.
 | Parametric EQ | <img src="screenshots/parametric-eq.png" width="220"> | ✅ | ✅ | Three-band EQ (low shelf / mid bell / high shelf), per-band freq/gain/Q |
 | Wah | <img src="screenshots/wah.png" width="220"> | ✅ | ✅ | Resonant bandpass swept manually or by the input envelope (auto-wah) |
 | Pitch Shift | <img src="screenshots/pitch-shift.png" width="220"> | ✅ | ✅ | ±12-semitone two-tap crossfading delay-line pitch shifter |
+| Flanger | <img src="screenshots/flanger.png" width="220"> | ✅ | ✅ | Short LFO-swept delay with feedback — the resonant "jet" comb |
+| Ping-Pong Delay | <img src="screenshots/ping-pong.png" width="220"> | ✅ | ✅ | Stereo cross-coupled delay; echoes bounce left↔right as they decay |
+| Phaser | <img src="screenshots/phaser.png" width="220"> | ✅ | ✅ | Six cascaded swept all-pass stages + feedback → moving notches |
+| Distortion | <img src="screenshots/distortion.png" width="220"> | ✅ | ✅ | tanh soft-clip drive with a one-pole tone tilt, level, and mix |
+| Auto-Pan | <img src="screenshots/panning.png" width="220"> | ✅ | ✅ | Equal-power LFO stereo panner (sine/triangle/square) |
+| Robotization | <img src="screenshots/robotization.png" width="220"> | ✅ | ✅ | STFT zero-phase resynthesis → fixed monotone "robot" pitch |
 | _more effects_ | | planned | planned | flanger, ping-pong, phaser, distortion, panning, robotization, … |
 
 Each effect also ships a dark **Ink & Signal** editor (see `*/*_editor.hpp` and

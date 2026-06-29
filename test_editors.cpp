@@ -125,3 +125,9 @@ TEST_CASE("Comp/Expander editor matches baseline", "[editor]")  { check_editor<C
 TEST_CASE("Parametric EQ editor matches baseline", "[editor]")  { check_editor<ParametricEqProcessor>("parametric-eq"); }
 TEST_CASE("Wah editor matches baseline", "[editor]")            { check_editor<WahProcessor>("wah"); }
 TEST_CASE("Pitch Shift editor matches baseline", "[editor]")    { check_editor<PitchShiftProcessor>("pitch-shift"); }
+TEST_CASE("Flanger editor matches baseline", "[editor]")        { check_editor<FlangerProcessor>("flanger"); }
+TEST_CASE("Ping-Pong editor matches baseline", "[editor]")      { check_editor<PingPongProcessor>("ping-pong"); }
+TEST_CASE("Phaser editor matches baseline", "[editor]")         { check_editor<PhaserProcessor>("phaser"); }
+TEST_CASE("Distortion editor matches baseline", "[editor]")     { check_editor<DistortionProcessor>("distortion"); }
+TEST_CASE("Auto-Pan editor matches baseline", "[editor]")       { check_editor<PanningProcessor>("panning"); }
+TEST_CASE("Robotization editor matches baseline", "[editor]")   { check_editor<RobotizationProcessor>("robotization"); }

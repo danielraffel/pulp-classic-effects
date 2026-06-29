@@ -24,6 +24,12 @@ add_subdirectory(compressor-expander)
 add_subdirectory(parametric-eq)
 add_subdirectory(wah)
 add_subdirectory(pitch-shift)
+add_subdirectory(flanger)
+add_subdirectory(ping-pong)
+add_subdirectory(phaser)
+add_subdirectory(distortion)
+add_subdirectory(panning)
+add_subdirectory(robotization)
 
 # Combined render check for every effect's dark Ink & Signal editor. Needs
 # pulp::view (Ink & Signal theme + Skia screenshot); skips gracefully at runtime
