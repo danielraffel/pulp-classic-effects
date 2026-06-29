@@ -58,3 +58,17 @@ Each effect ships its behavioral test (built by default); the tests use the
 Pulp SDK's reusable `pulp/format/validation_assertions.hpp` helpers
 (`check_finite`, `check_peak_below`, `check_param_round_trip`,
 `check_state_round_trip`, …).
+
+### Editor screenshots
+
+The `Editor` column above is rendered from the baselines in `screenshots/`.
+`test_editors.cpp` re-renders each dark Ink & Signal editor with Skia and
+compares it pixel-wise against its committed baseline, so an unintended UI
+change fails CI. After a deliberate editor change, rebake the baselines:
+
+```bash
+PULP_BAKE_SCREENSHOTS=1 ctest --test-dir build -R editors --output-on-failure
+git add screenshots && git commit -m "chore: rebake editor screenshots"
+```
+
+The test skips cleanly when the SDK build has no Skia raster backend.

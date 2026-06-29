@@ -42,5 +42,7 @@ if(PULP_BUILD_TESTS AND TARGET pulp::view)
         ${CMAKE_CURRENT_SOURCE_DIR}/parametric-eq
         ${CMAKE_CURRENT_SOURCE_DIR}/wah
         ${CMAKE_CURRENT_SOURCE_DIR}/pitch-shift)
+    target_compile_definitions(editors-test PRIVATE
+        SCREENSHOTS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/screenshots")
     catch_discover_tests(editors-test)
 endif()
