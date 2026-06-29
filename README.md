@@ -24,10 +24,12 @@ out the SDK contract surface.
 | Parametric EQ | ✅ | ✅ | Three-band EQ (low shelf / mid bell / high shelf), per-band freq/gain/Q |
 | Wah | ✅ | ✅ | Resonant bandpass swept manually or by the input envelope (auto-wah) |
 | Pitch Shift | ✅ | ✅ | ±12-semitone two-tap crossfading delay-line pitch shifter |
-| MIDI Transpose | ✅ | ✅ | Pure MIDI effect — semitone note shifter, passes CC/bend/SysEx through |
-| MonoSynth | ✅ | ✅ | Minimal monophonic instrument (oscillator + ADSR), MIDI in → audio out |
-| gui-zoo | ✅ | ✅ | UI fixture — widgets/layout/Skia paint with a deterministic screenshot baseline |
 | _more effects_ | planned | planned | flanger, ping-pong, phaser, distortion, panning, robotization, … |
+
+Each effect also ships a dark **Ink & Signal** editor (see `*/*_editor.hpp` and
+`test_editors.cpp`). Companion non-effect examples (a MIDI utility, a minimal
+instrument, a UI fixture) live in
+[pulp-example-plugins](https://github.com/danielraffel/pulp-example-plugins).
 
 ## Credits
 

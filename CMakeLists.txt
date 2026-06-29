@@ -24,9 +24,6 @@ add_subdirectory(compressor-expander)
 add_subdirectory(parametric-eq)
 add_subdirectory(wah)
 add_subdirectory(pitch-shift)
-add_subdirectory(midi-transpose)
-add_subdirectory(mono-synth)
-add_subdirectory(gui-zoo)
 
 # Combined render check for every effect's dark Ink & Signal editor. Needs
 # pulp::view (Ink & Signal theme + Skia screenshot); skips gracefully at runtime
