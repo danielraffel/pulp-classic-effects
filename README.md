@@ -20,10 +20,11 @@ out the SDK contract surface.
 | Delay | ✅ | ✅ | Feedback delay line with wet/dry mix |
 | Vibrato | ✅ | ✅ | LFO-swept fractional delay (pitch modulation) |
 | Chorus | ✅ | ✅ | LFO-swept short delay blended with the dry signal |
+| Comp/Expander | ✅ | ✅ | Stereo-linked dynamics — compress above / expand below, with makeup |
 | MIDI Transpose | ✅ | ✅ | Pure MIDI effect — semitone note shifter, passes CC/bend/SysEx through |
 | MonoSynth | ✅ | ✅ | Minimal monophonic instrument (oscillator + ADSR), MIDI in → audio out |
 | gui-zoo | ✅ | ✅ | UI fixture — widgets/layout/Skia paint with a deterministic screenshot baseline |
-| _more effects_ | planned | planned | compressor-expander, parametric EQ, wah, pitch-shift, flanger, ping-pong, phaser, distortion, panning, robotization, … |
+| _more effects_ | planned | planned | parametric EQ, wah, pitch-shift, flanger, ping-pong, phaser, distortion, panning, robotization, … |
 
 ## Credits
 
