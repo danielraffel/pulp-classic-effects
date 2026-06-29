@@ -33,12 +33,34 @@ bool bake_mode() {
     return e && *e && std::string(e) != "0";
 }
 
-template <class Proc, class Build>
-void check_editor(Build build, const std::string& name) {
+// Push every parameter to a value far from its default (the far end of its
+// range). Returns true if at least one parameter actually moved — i.e. the
+// editor has a control whose rendered state should now differ from the
+// default-state baseline. Used to prove create_view()'s editor is bound to
+// the store we passed, not rendering a hard-coded default tree.
+bool push_params_off_default(state::StateStore& store) {
+    bool moved = false;
+    for (const auto& info : store.all_params()) {
+        const float def = store.get_default(info.id);
+        const float mid = 0.5f * (info.range.min + info.range.max);
+        const float target = (def <= mid) ? info.range.max : info.range.min;
+        if (target != def) { store.set_value(info.id, target); moved = true; }
+    }
+    return moved;
+}
+
+template <class Proc>
+void check_editor(const std::string& name) {
     Proc proc;
     state::StateStore store;
     proc.define_parameters(store);
-    auto editor = build(store);
+    proc.set_state_store(&store);
+    // Build through the real plugin path: create_view() is what the VST3 / AU /
+    // CLAP / Standalone adapters call to obtain the editor. Asserting it here
+    // proves the wiring, and the baseline compare below proves it returns the
+    // same dark Ink & Signal tree the screenshots were baked from.
+    auto editor = proc.create_view();
+    REQUIRE(editor);
     const auto b = editor->bounds();
     const uint32_t w = static_cast<uint32_t>(b.width);
     const uint32_t h = static_cast<uint32_t>(b.height);
@@ -67,15 +89,39 @@ void check_editor(Build build, const std::string& name) {
     REQUIRE(cmp.valid);
     REQUIRE(cmp.passes(0.97f));
     std::error_code ec; fs::remove(tmp, ec);
+
+    // Prove the editor is bound to the store create_view() was given, not
+    // rendering fixed defaults: push every param to the far end of its range,
+    // rebuild via the same create_view() path, and require the render to
+    // visibly diverge from the (default-state) baseline. A create_view() wired
+    // to the wrong/empty store would render identically and fail this.
+    Proc proc2;
+    state::StateStore store2;
+    proc2.define_parameters(store2);
+    proc2.set_state_store(&store2);
+    if (push_params_off_default(store2)) {
+        auto editor2 = proc2.create_view();
+        REQUIRE(editor2);
+        const auto b2 = editor2->bounds();
+        const auto tmp2 = fs::temp_directory_path() / (name + "-offdefault.png");
+        REQUIRE(view::render_to_file(*editor2, static_cast<uint32_t>(b2.width),
+                                     static_cast<uint32_t>(b2.height), tmp2.string(),
+                                     2.0f, view::ScreenshotBackend::skia));
+        const auto cmp2 = view::compare_screenshot_files(baseline.string(), tmp2.string(), 24);
+        INFO("off-default similarity=" << cmp2.similarity);
+        REQUIRE(cmp2.valid);
+        REQUIRE(cmp2.similarity < 0.999f);
+        fs::remove(tmp2, ec);
+    }
 }
 }  // namespace
 
-TEST_CASE("Tremolo editor matches baseline", "[editor]")        { check_editor<TremoloProcessor>(build_tremolo_editor, "tremolo"); }
-TEST_CASE("Ring Mod editor matches baseline", "[editor]")       { check_editor<RingModProcessor>(build_ring_mod_editor, "ring-mod"); }
-TEST_CASE("Delay editor matches baseline", "[editor]")          { check_editor<DelayProcessor>(build_delay_editor, "delay"); }
-TEST_CASE("Vibrato editor matches baseline", "[editor]")        { check_editor<VibratoProcessor>(build_vibrato_editor, "vibrato"); }
-TEST_CASE("Chorus editor matches baseline", "[editor]")         { check_editor<ChorusProcessor>(build_chorus_editor, "chorus"); }
-TEST_CASE("Comp/Expander editor matches baseline", "[editor]")  { check_editor<CompressorExpanderProcessor>(build_compressor_expander_editor, "compressor-expander"); }
-TEST_CASE("Parametric EQ editor matches baseline", "[editor]")  { check_editor<ParametricEqProcessor>(build_parametric_eq_editor, "parametric-eq"); }
-TEST_CASE("Wah editor matches baseline", "[editor]")            { check_editor<WahProcessor>(build_wah_editor, "wah"); }
-TEST_CASE("Pitch Shift editor matches baseline", "[editor]")    { check_editor<PitchShiftProcessor>(build_pitch_shift_editor, "pitch-shift"); }
+TEST_CASE("Tremolo editor matches baseline", "[editor]")        { check_editor<TremoloProcessor>("tremolo"); }
+TEST_CASE("Ring Mod editor matches baseline", "[editor]")       { check_editor<RingModProcessor>("ring-mod"); }
+TEST_CASE("Delay editor matches baseline", "[editor]")          { check_editor<DelayProcessor>("delay"); }
+TEST_CASE("Vibrato editor matches baseline", "[editor]")        { check_editor<VibratoProcessor>("vibrato"); }
+TEST_CASE("Chorus editor matches baseline", "[editor]")         { check_editor<ChorusProcessor>("chorus"); }
+TEST_CASE("Comp/Expander editor matches baseline", "[editor]")  { check_editor<CompressorExpanderProcessor>("compressor-expander"); }
+TEST_CASE("Parametric EQ editor matches baseline", "[editor]")  { check_editor<ParametricEqProcessor>("parametric-eq"); }
+TEST_CASE("Wah editor matches baseline", "[editor]")            { check_editor<WahProcessor>("wah"); }
+TEST_CASE("Pitch Shift editor matches baseline", "[editor]")    { check_editor<PitchShiftProcessor>("pitch-shift"); }

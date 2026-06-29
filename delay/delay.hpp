@@ -7,6 +7,7 @@
 // effect source was read. See the repo README for the algorithmic reference.
 
 #include <pulp/format/processor.hpp>
+#include <pulp/view/view.hpp>
 #include <pulp/signal/delay_line.hpp>
 
 #include <algorithm>
@@ -23,8 +24,17 @@ enum DelayParams : state::ParamID {
     kDelayBypass = 4,
 };
 
+// Defined out-of-line in delay_editor.hpp (included at the bottom of this file).
+// Forward-declared so create_view() hands the host the same dark Ink &
+// Signal editor the screenshot tests render.
+std::unique_ptr<view::View> build_delay_editor(state::StateStore& store);
+
 class DelayProcessor : public format::Processor {
 public:
+    // Hand the host our dark Ink & Signal editor; the framework owns the
+    // returned tree and may call this once per attached editor window.
+    std::unique_ptr<view::View> create_view() override { return build_delay_editor(state()); }
+
     format::PluginDescriptor descriptor() const override {
         return {.name = "Delay", .manufacturer = "Pulp Examples",
                 .bundle_id = "com.pulp.examples.delay", .version = "0.1.0",
@@ -117,3 +127,9 @@ inline std::unique_ptr<format::Processor> create_delay() {
 }
 
 } // namespace pulp::examples::classic
+
+// Pulls in the inline definition of build_delay_editor (declared above) so the
+// create_view() override links in every TU that uses the processor — the
+// plugin adapter and the headless tests alike. After the class so the editor
+// header sees a complete definition; its re-include of this file is a no-op.
+#include "delay_editor.hpp"

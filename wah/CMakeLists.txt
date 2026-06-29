@@ -2,7 +2,7 @@
 
 if(PULP_BUILD_TESTS)
     add_executable(wah-test test_wah.cpp)
-    target_link_libraries(wah-test PRIVATE pulp::format Catch2::Catch2WithMain)
+    target_link_libraries(wah-test PRIVATE pulp::format pulp::view Catch2::Catch2WithMain)
     target_include_directories(wah-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     catch_discover_tests(wah-test)
 endif()

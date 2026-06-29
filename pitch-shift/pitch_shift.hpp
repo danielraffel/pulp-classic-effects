@@ -12,6 +12,7 @@
 // method to stay legible.)
 
 #include <pulp/format/processor.hpp>
+#include <pulp/view/view.hpp>
 #include <pulp/signal/delay_line.hpp>
 
 #include <algorithm>
@@ -27,8 +28,17 @@ enum PitchShiftParams : state::ParamID {
     kPitchBypass    = 3,
 };
 
+// Defined out-of-line in pitch_shift_editor.hpp (included at the bottom of this file).
+// Forward-declared so create_view() hands the host the same dark Ink &
+// Signal editor the screenshot tests render.
+std::unique_ptr<view::View> build_pitch_shift_editor(state::StateStore& store);
+
 class PitchShiftProcessor : public format::Processor {
 public:
+    // Hand the host our dark Ink & Signal editor; the framework owns the
+    // returned tree and may call this once per attached editor window.
+    std::unique_ptr<view::View> create_view() override { return build_pitch_shift_editor(state()); }
+
     format::PluginDescriptor descriptor() const override {
         return {.name = "Pitch Shift", .manufacturer = "Pulp Examples",
                 .bundle_id = "com.pulp.examples.pitch-shift", .version = "0.1.0",
@@ -127,3 +137,9 @@ inline std::unique_ptr<format::Processor> create_pitch_shift() {
 }
 
 } // namespace pulp::examples::classic
+
+// Pulls in the inline definition of build_pitch_shift_editor (declared above) so the
+// create_view() override links in every TU that uses the processor — the
+// plugin adapter and the headless tests alike. After the class so the editor
+// header sees a complete definition; its re-include of this file is a no-op.
+#include "pitch_shift_editor.hpp"

@@ -2,7 +2,7 @@
 
 if(PULP_BUILD_TESTS)
     add_executable(tremolo-test test_tremolo.cpp)
-    target_link_libraries(tremolo-test PRIVATE pulp::format Catch2::Catch2WithMain)
+    target_link_libraries(tremolo-test PRIVATE pulp::format pulp::view Catch2::Catch2WithMain)
     target_include_directories(tremolo-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     catch_discover_tests(tremolo-test)
 endif()

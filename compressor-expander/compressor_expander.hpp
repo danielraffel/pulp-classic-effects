@@ -11,6 +11,7 @@
 // pulp::signal::BallisticsFilter; no third-party effect source was read.
 
 #include <pulp/format/processor.hpp>
+#include <pulp/view/view.hpp>
 #include <pulp/signal/ballistics_filter.hpp>
 
 #include <algorithm>
@@ -30,8 +31,17 @@ enum CompExpParams : state::ParamID {
     kCxBypass      = 8,
 };
 
+// Defined out-of-line in compressor_expander_editor.hpp (included at the bottom of this file).
+// Forward-declared so create_view() hands the host the same dark Ink &
+// Signal editor the screenshot tests render.
+std::unique_ptr<view::View> build_compressor_expander_editor(state::StateStore& store);
+
 class CompressorExpanderProcessor : public format::Processor {
 public:
+    // Hand the host our dark Ink & Signal editor; the framework owns the
+    // returned tree and may call this once per attached editor window.
+    std::unique_ptr<view::View> create_view() override { return build_compressor_expander_editor(state()); }
+
     format::PluginDescriptor descriptor() const override {
         return {.name = "Comp/Expander", .manufacturer = "Pulp Examples",
                 .bundle_id = "com.pulp.examples.compressor-expander", .version = "0.1.0",
@@ -140,3 +150,9 @@ inline std::unique_ptr<format::Processor> create_compressor_expander() {
 }
 
 } // namespace pulp::examples::classic
+
+// Pulls in the inline definition of build_compressor_expander_editor (declared above) so the
+// create_view() override links in every TU that uses the processor — the
+// plugin adapter and the headless tests alike. After the class so the editor
+// header sees a complete definition; its re-include of this file is a no-op.
+#include "compressor_expander_editor.hpp"

@@ -2,7 +2,7 @@
 
 if(PULP_BUILD_TESTS)
     add_executable(chorus-test test_chorus.cpp)
-    target_link_libraries(chorus-test PRIVATE pulp::format Catch2::Catch2WithMain)
+    target_link_libraries(chorus-test PRIVATE pulp::format pulp::view Catch2::Catch2WithMain)
     target_include_directories(chorus-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     catch_discover_tests(chorus-test)
 endif()

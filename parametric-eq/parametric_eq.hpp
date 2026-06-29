@@ -8,6 +8,7 @@
 // on Pulp's own pulp::signal::Biquad; no third-party effect source was read.
 
 #include <pulp/format/processor.hpp>
+#include <pulp/view/view.hpp>
 #include <pulp/signal/biquad.hpp>
 
 #include <algorithm>
@@ -27,8 +28,17 @@ enum ParametricEqParams : state::ParamID {
     kEqBypass  = 8,
 };
 
+// Defined out-of-line in parametric_eq_editor.hpp (included at the bottom of this file).
+// Forward-declared so create_view() hands the host the same dark Ink &
+// Signal editor the screenshot tests render.
+std::unique_ptr<view::View> build_parametric_eq_editor(state::StateStore& store);
+
 class ParametricEqProcessor : public format::Processor {
 public:
+    // Hand the host our dark Ink & Signal editor; the framework owns the
+    // returned tree and may call this once per attached editor window.
+    std::unique_ptr<view::View> create_view() override { return build_parametric_eq_editor(state()); }
+
     format::PluginDescriptor descriptor() const override {
         return {.name = "Parametric EQ", .manufacturer = "Pulp Examples",
                 .bundle_id = "com.pulp.examples.parametric-eq", .version = "0.1.0",
@@ -131,3 +141,9 @@ inline std::unique_ptr<format::Processor> create_parametric_eq() {
 }
 
 } // namespace pulp::examples::classic
+
+// Pulls in the inline definition of build_parametric_eq_editor (declared above) so the
+// create_view() override links in every TU that uses the processor — the
+// plugin adapter and the headless tests alike. After the class so the editor
+// header sees a complete definition; its re-include of this file is a no-op.
+#include "parametric_eq_editor.hpp"

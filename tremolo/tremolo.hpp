@@ -16,6 +16,7 @@
 
 #include <pulp/format/processor.hpp>
 #include <pulp/signal/oscillator.hpp>
+#include <pulp/view/view.hpp>
 
 #include <algorithm>
 #include <array>
@@ -29,6 +30,11 @@ enum TremoloParams : state::ParamID {
     kWaveform = 3,  // 0 = sine, 1 = triangle, 2 = square
     kBypass   = 4,
 };
+
+// Defined out-of-line in tremolo_editor.hpp (included at the bottom of this
+// file). Forward-declared here so create_view() can hand the host the same
+// dark Ink & Signal editor the screenshot tests render.
+std::unique_ptr<view::View> build_tremolo_editor(state::StateStore& store);
 
 class TremoloProcessor : public format::Processor {
 public:
@@ -79,6 +85,12 @@ public:
     }
 
     void release() override { lfo_.reset(); }
+
+    // Hand the host our dark Ink & Signal editor. The framework owns the
+    // returned tree and may call this once per attached editor window.
+    std::unique_ptr<view::View> create_view() override {
+        return build_tremolo_editor(state());
+    }
 
     void process(audio::BufferView<float>& output,
                  const audio::BufferView<const float>& input,
@@ -148,3 +160,10 @@ inline std::unique_ptr<format::Processor> create_tremolo() {
 }
 
 } // namespace pulp::examples::classic
+
+// Pulls in the inline definition of build_tremolo_editor (declared above) so
+// the create_view() override links in every TU that uses the processor — the
+// plugin adapter and the headless tests alike. Placed after the class so the
+// editor header (which needs TremoloProcessor's param enum) sees a complete
+// definition; the header guard makes its own re-include of this file a no-op.
+#include "tremolo_editor.hpp"

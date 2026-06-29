@@ -2,7 +2,7 @@
 
 if(PULP_BUILD_TESTS)
     add_executable(delay-test test_delay.cpp)
-    target_link_libraries(delay-test PRIVATE pulp::format Catch2::Catch2WithMain)
+    target_link_libraries(delay-test PRIVATE pulp::format pulp::view Catch2::Catch2WithMain)
     target_include_directories(delay-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     catch_discover_tests(delay-test)
 endif()

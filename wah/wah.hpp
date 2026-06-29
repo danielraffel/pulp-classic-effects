@@ -9,6 +9,7 @@
 // pulp::signal::Svf + BallisticsFilter; no third-party effect source was read.
 
 #include <pulp/format/processor.hpp>
+#include <pulp/view/view.hpp>
 #include <pulp/signal/svf.hpp>
 #include <pulp/signal/ballistics_filter.hpp>
 
@@ -28,8 +29,17 @@ enum WahParams : state::ParamID {
     kWahBypass      = 6,
 };
 
+// Defined out-of-line in wah_editor.hpp (included at the bottom of this file).
+// Forward-declared so create_view() hands the host the same dark Ink &
+// Signal editor the screenshot tests render.
+std::unique_ptr<view::View> build_wah_editor(state::StateStore& store);
+
 class WahProcessor : public format::Processor {
 public:
+    // Hand the host our dark Ink & Signal editor; the framework owns the
+    // returned tree and may call this once per attached editor window.
+    std::unique_ptr<view::View> create_view() override { return build_wah_editor(state()); }
+
     format::PluginDescriptor descriptor() const override {
         return {.name = "Wah", .manufacturer = "Pulp Examples",
                 .bundle_id = "com.pulp.examples.wah", .version = "0.1.0",
@@ -141,3 +151,9 @@ inline std::unique_ptr<format::Processor> create_wah() {
 }
 
 } // namespace pulp::examples::classic
+
+// Pulls in the inline definition of build_wah_editor (declared above) so the
+// create_view() override links in every TU that uses the processor — the
+// plugin adapter and the headless tests alike. After the class so the editor
+// header sees a complete definition; its re-include of this file is a no-op.
+#include "wah_editor.hpp"

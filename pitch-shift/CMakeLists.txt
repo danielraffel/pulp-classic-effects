@@ -2,7 +2,7 @@
 
 if(PULP_BUILD_TESTS)
     add_executable(pitch-shift-test test_pitch_shift.cpp)
-    target_link_libraries(pitch-shift-test PRIVATE pulp::format Catch2::Catch2WithMain)
+    target_link_libraries(pitch-shift-test PRIVATE pulp::format pulp::view Catch2::Catch2WithMain)
     target_include_directories(pitch-shift-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     catch_discover_tests(pitch-shift-test)
 endif()
