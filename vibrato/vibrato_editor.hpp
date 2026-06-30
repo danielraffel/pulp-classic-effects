@@ -13,8 +13,13 @@ inline std::unique_ptr<view::View> build_vibrato_editor(state::StateStore& store
     return build_effect_editor(store, EffectEditorSpec{
         .title = "VIBRATO",
         .subtitle = "LFO pitch modulation",
-        .knobs = {{kVibRateHz, "Rate"}, {kVibDepthMs, "Depth"}},
-        .bypass_id = kVibBypass,
+        .controls = {{kVibWidthSecs, "Width"},
+                     {kVibRateHz, "Rate"},
+                     {kVibWaveform, "Waveform", Control::Kind::Combo,
+                      {"Sine", "Triangle", "Sawtooth", "Inv. Sawtooth"}},
+                     {kVibInterp, "Interp", Control::Kind::Combo,
+                      {"Nearest", "Linear", "Cubic"}}},
+        .has_bypass = false,
     });
 }
 

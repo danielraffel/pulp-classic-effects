@@ -16,7 +16,7 @@ inline std::unique_ptr<view::View> build_delay_editor(state::StateStore& store) 
         .title = "DELAY",
         .subtitle = "classic feedback echo",
         .knobs = {{kTimeMs, "Time"}, {kFeedback, "Feedback"}, {kDelayMix, "Mix"}},
-        .bypass_id = kDelayBypass,
+        .has_bypass = false,
     });
 }
 

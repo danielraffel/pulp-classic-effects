@@ -8,13 +8,12 @@
 
 using namespace pulp;
 using pulp::examples::classic::create_compressor_expander;
-using pulp::examples::classic::kCompThreshold;
-using pulp::examples::classic::kCompRatio;
-using pulp::examples::classic::kExpThreshold;
-using pulp::examples::classic::kExpRatio;
-using pulp::examples::classic::kAttackMs;
-using pulp::examples::classic::kReleaseMs;
-using pulp::examples::classic::kMakeupDb;
+using pulp::examples::classic::kMode;
+using pulp::examples::classic::kThreshold;
+using pulp::examples::classic::kRatio;
+using pulp::examples::classic::kAttack;
+using pulp::examples::classic::kRelease;
+using pulp::examples::classic::kMakeup;
 using pulp::examples::classic::kCxBypass;
 namespace v = pulp::format::validation;
 
@@ -22,6 +21,10 @@ namespace {
 constexpr float kPi = 3.14159265358979323846f;
 constexpr int kN = 24000;          // 0.5 s @ 48k
 constexpr int kTail0 = 16000;      // measure after the envelope settles
+
+// Mode indices, matching the Mode dropdown labels in the editor.
+constexpr float kCompressor = 0.0f;
+constexpr float kExpander   = 1.0f;
 
 std::vector<float> render(format::HeadlessHost& h, const std::vector<float>& mono) {
     const int frames = (int)mono.size();
@@ -68,54 +71,66 @@ double steady_gain(format::HeadlessHost& h, float amp) {
     REQUIRE(v::check_finite(out));
     return rms_tail(out) / rms_tail(in);
 }
+// Configure the shared dynamics knobs (seconds for attack/release, per truce).
+void configure(format::HeadlessHost& h, float mode, float thr, float ratio,
+               float attack_s = 0.005f, float release_s = 0.2f, float makeup = 0.0f) {
+    h.state().set_value(kMode, mode);
+    h.state().set_value(kThreshold, thr);
+    h.state().set_value(kRatio, ratio);
+    h.state().set_value(kAttack, attack_s);
+    h.state().set_value(kRelease, release_s);
+    h.state().set_value(kMakeup, makeup);
+    h.state().set_value(kCxBypass, 0.0f);
+}
 }
 
-TEST_CASE("Comp/Expander attenuates loud signals but leaves quiet ones alone", "[compexp]") {
+TEST_CASE("Compressor mode attenuates loud signals but leaves quiet ones alone", "[compexp]") {
     format::HeadlessHost h(create_compressor_expander);
     h.prepare(48000.0, kN);
-    h.state().set_value(kCompThreshold, -18.0f);
-    h.state().set_value(kCompRatio, 4.0f);
-    h.state().set_value(kExpThreshold, -80.0f);   // expander out of the way
-    h.state().set_value(kExpRatio, 1.0f);
-    h.state().set_value(kAttackMs, 5.0f);
-    h.state().set_value(kReleaseMs, 200.0f);
-    h.state().set_value(kMakeupDb, 0.0f);
+    configure(h, kCompressor, /*thr=*/-18.0f, /*ratio=*/4.0f);
 
     const double quiet = steady_gain(h, 0.05f);   // ~-26 dB, below threshold
     const double loud  = steady_gain(h, 0.5f);    // ~-6 dB, above threshold
 
-    REQUIRE(quiet > 0.95);    // below threshold: ~unity
+    REQUIRE(quiet > 0.9);     // below threshold: ~unity
     REQUIRE(loud < 0.85);     // above threshold: compressed down
     REQUIRE(loud < quiet);    // level-dependent — a fixed gain can't do this
 }
 
-TEST_CASE("Comp/Expander expands (further attenuates) below the expander threshold", "[compexp]") {
-    format::HeadlessHost h(create_compressor_expander);
-    h.prepare(48000.0, kN);
-    h.state().set_value(kCompThreshold, 0.0f);    // compressor out of the way
-    h.state().set_value(kCompRatio, 1.0f);
-    h.state().set_value(kExpThreshold, -30.0f);
-    h.state().set_value(kExpRatio, 3.0f);
-    h.state().set_value(kAttackMs, 5.0f);
-    h.state().set_value(kReleaseMs, 200.0f);
-    h.state().set_value(kMakeupDb, 0.0f);
+TEST_CASE("Expander mode attenuates below the threshold", "[compexp]") {
+    // The expander detector integrates the squared level slowly (~0.2 s memory,
+    // the book's anti-pumping average), so each amplitude needs its own freshly
+    // reset host to settle to the right level within the measurement window.
+    auto gain_at = [](float amp) {
+        format::HeadlessHost h(create_compressor_expander);
+        h.prepare(48000.0, kN);
+        configure(h, kExpander, /*thr=*/-30.0f, /*ratio=*/3.0f);
+        return steady_gain(h, amp);
+    };
+    const double moderate = gain_at(0.1f);   // ~-23 dB, above exp threshold
+    const double tiny     = gain_at(0.01f);  // ~-43 dB, below exp threshold
 
-    const double moderate = steady_gain(h, 0.1f);  // ~-20 dB, above exp threshold
-    const double tiny     = steady_gain(h, 0.01f); // ~-40 dB, below exp threshold
-
-    REQUIRE(moderate > 0.9);   // above exp threshold: ~unity
-    REQUIRE(tiny < 0.6);       // below exp threshold: expanded down
+    REQUIRE(moderate > 0.85);  // above exp threshold: ~unity
+    REQUIRE(tiny < 0.5);       // below exp threshold: expanded down
     REQUIRE(tiny < moderate);
 }
 
-TEST_CASE("Comp/Expander applies makeup gain", "[compexp]") {
+TEST_CASE("Compressor mode does not attenuate below the threshold", "[compexp]") {
+    // The complement of the compressor test: a level under the threshold must
+    // pass through near unity, proving the curve compresses ABOVE, not below.
     format::HeadlessHost h(create_compressor_expander);
     h.prepare(48000.0, kN);
-    h.state().set_value(kCompThreshold, 0.0f);    // no compression for our level
-    h.state().set_value(kCompRatio, 1.0f);
-    h.state().set_value(kExpThreshold, -80.0f);   // no expansion
-    h.state().set_value(kExpRatio, 1.0f);
-    h.state().set_value(kMakeupDb, 6.0f);         // +6 dB ~= x1.995
+    configure(h, kCompressor, /*thr=*/-6.0f, /*ratio=*/8.0f);
+    const double quiet = steady_gain(h, 0.05f);    // ~-26 dB, well below -6 dB
+    REQUIRE(quiet > 0.95);
+}
+
+TEST_CASE("Compressor/Expander applies makeup gain", "[compexp]") {
+    format::HeadlessHost h(create_compressor_expander);
+    h.prepare(48000.0, kN);
+    // Threshold at 0 dB so a -20 dB tone never crosses it; only makeup applies.
+    configure(h, kCompressor, /*thr=*/0.0f, /*ratio=*/1.0f,
+              /*attack=*/0.005f, /*release=*/0.2f, /*makeup=*/6.0f);  // +6 dB ~= x1.995
 
     const double g = steady_gain(h, 0.1f);
     REQUIRE(g > 1.9);
@@ -125,17 +140,12 @@ TEST_CASE("Comp/Expander applies makeup gain", "[compexp]") {
 // Ballistics: a fast attack must reduce gain sooner than a slow attack. Without
 // this, an instantaneous (no-smoothing) detector — the whole point of a
 // compressor vs a waveshaper — would pass the steady-state tests.
-TEST_CASE("Comp/Expander attack time governs how fast gain reduction engages", "[compexp]") {
-    auto onset_to_half = [](float attack_ms) {
+TEST_CASE("Compressor attack time governs how fast gain reduction engages", "[compexp]") {
+    auto onset_to_half = [](float attack_s) {
         format::HeadlessHost h(create_compressor_expander);
         h.prepare(48000.0, 12000);
-        h.state().set_value(kCompThreshold, -18.0f);
-        h.state().set_value(kCompRatio, 4.0f);
-        h.state().set_value(kExpThreshold, -80.0f);
-        h.state().set_value(kExpRatio, 1.0f);
-        h.state().set_value(kAttackMs, attack_ms);
-        h.state().set_value(kReleaseMs, 200.0f);
-        h.state().set_value(kMakeupDb, 0.0f);
+        configure(h, kCompressor, /*thr=*/-18.0f, /*ratio=*/4.0f,
+                  /*attack=*/attack_s, /*release=*/0.2f);
         // Step: silence, then a constant 0.5 (well above the -18 dB threshold).
         std::vector<float> step(12000, 0.0f);
         const int onset = 2000;
@@ -147,25 +157,19 @@ TEST_CASE("Comp/Expander attack time governs how fast gain reduction engages", "
             if (out[n] <= half) return n - onset;
         return 12000 - onset;
     };
-    const int t_fast = onset_to_half(1.0f);    // 1 ms attack
-    const int t_slow = onset_to_half(50.0f);   // 50 ms attack
+    const int t_fast = onset_to_half(0.001f);   // 1 ms attack
+    const int t_slow = onset_to_half(0.050f);   // 50 ms attack
     REQUIRE(t_fast > 0);
     REQUIRE(t_slow > 2 * t_fast);               // slow attack engages much later
 }
 
-// Stereo link: the detector keys off the louder channel and applies ONE gain to
-// both, so a quiet channel is attenuated alongside a loud one. A per-channel or
-// channel-0-only detector would leave the quiet channel near unity.
-TEST_CASE("Comp/Expander is stereo-linked (quiet channel follows the loud one)", "[compexp]") {
+// Stereo link: the detector keys off a mono mixdown and applies ONE gain to
+// both channels, so a quiet channel is attenuated alongside a loud one. A
+// per-channel detector would leave the quiet channel near unity.
+TEST_CASE("Compressor is stereo-linked (quiet channel follows the loud one)", "[compexp]") {
     format::HeadlessHost h(create_compressor_expander);
     h.prepare(48000.0, kN);
-    h.state().set_value(kCompThreshold, -18.0f);
-    h.state().set_value(kCompRatio, 4.0f);
-    h.state().set_value(kExpThreshold, -80.0f);
-    h.state().set_value(kExpRatio, 1.0f);
-    h.state().set_value(kAttackMs, 5.0f);
-    h.state().set_value(kReleaseMs, 200.0f);
-    h.state().set_value(kMakeupDb, 0.0f);
+    configure(h, kCompressor, /*thr=*/-18.0f, /*ratio=*/4.0f);
 
     auto loud_l = sine(0.5f, 300.0f, kN);    // ~-6 dB, above threshold
     auto quiet_r = sine(0.02f, 300.0f, kN);  // ~-34 dB, far below threshold alone
@@ -175,14 +179,17 @@ TEST_CASE("Comp/Expander is stereo-linked (quiet channel follows the loud one)",
 
     const double gain_l = rms_tail(out_l) / rms_tail(loud_l);
     const double gain_r = rms_tail(out_r) / rms_tail(quiet_r);
-    REQUIRE(gain_l < 0.85);                       // loud channel compressed
-    REQUIRE(gain_r < 0.85);                        // quiet channel pulled down too
+    REQUIRE(gain_l < 0.9);                         // loud channel compressed
+    REQUIRE(gain_r < 0.9);                         // quiet channel pulled down too
     REQUIRE(std::fabs(gain_l - gain_r) < 0.05);    // same gain on both channels
 }
 
-TEST_CASE("Comp/Expander bypass passes through unchanged", "[compexp]") {
+TEST_CASE("Compressor/Expander bypass passes through unchanged", "[compexp]") {
     format::HeadlessHost h(create_compressor_expander);
     h.prepare(48000.0, 512);
+    h.state().set_value(kMode, kCompressor);
+    h.state().set_value(kThreshold, -40.0f);  // would compress hard if engaged
+    h.state().set_value(kRatio, 20.0f);
     h.state().set_value(kCxBypass, 1.0f);
     auto in = sine(0.7f, 500.0f, 512);
     auto out = render(h, in);

@@ -18,10 +18,13 @@
 namespace pulp::examples::classic {
 
 enum DelayParams : state::ParamID {
-    kTimeMs   = 1,   // 1..2000 ms
-    kFeedback = 2,   // 0..0.95
-    kDelayMix = 3,   // 0..100 %
-    kDelayBypass = 4,
+    // The reference parameter set is seconds / 0..0.9 feedback / 0..1 wet mix.
+    // The kTimeMs / kDelayMix symbol names predate the switch to the reference's
+    // units (seconds and a 0..1 mix); the names are kept to avoid churning the
+    // editor/test call sites, but the values they carry now match the reference.
+    kTimeMs   = 1,   // delay time, seconds, 0..5
+    kFeedback = 2,   // 0..0.9
+    kDelayMix = 3,   // 0..1 wet
 };
 
 // Defined out-of-line in delay_editor.hpp (included at the bottom of this file).
@@ -42,23 +45,24 @@ public:
                 .input_buses = {{"Audio In", 2}}, .output_buses = {{"Audio Out", 2}},
                 // Advisory feedback-tail length so hosts drain echoes on stop
                 // (max delay time; the actual tail also depends on feedback).
-                .tail_samples = 96000};
+                .tail_samples = 240000};
     }
 
     void define_parameters(state::StateStore& store) override {
-        store.add_parameter({.id = kTimeMs, .name = "Time", .unit = "ms",
-                             .range = state::ParamRange::with_centre(1.0f, 2000.0f, 250.0f, 250.0f)});
+        // Reference parameter set: time in seconds (display name "Delay Time",
+        // short "Time"), feedback 0..0.9, mix 0..1 wet. All linear.
+        store.add_parameter({.id = kTimeMs, .name = "Time", .unit = "s",
+                             .range = state::ParamRange::linear(0.0f, 5.0f, 0.1f)});
         store.add_parameter({.id = kFeedback, .name = "Feedback", .unit = "",
-                             .range = {0.0f, 0.95f, 0.3f, 0.0f}});
-        store.add_parameter({.id = kDelayMix, .name = "Mix", .unit = "%",
-                             .range = {0.0f, 100.0f, 35.0f, 0.0f}});
-        store.add_parameter({.id = kDelayBypass, .name = "Bypass", .unit = "",
-                             .range = {0.0f, 1.0f, 0.0f, 1.0f}});
+                             .range = state::ParamRange::linear(0.0f, 0.9f, 0.7f)});
+        store.add_parameter({.id = kDelayMix, .name = "Mix", .unit = "",
+                             .range = state::ParamRange::linear(0.0f, 1.0f, 1.0f)});
     }
 
     void prepare(const format::PrepareContext& ctx) override {
         sample_rate_ = static_cast<float>(ctx.sample_rate);
-        max_delay_ = static_cast<int>(sample_rate_ * 2.0f) + 4;  // 2 s headroom
+        // 5 s of delay line to cover the full Time range, plus a little headroom.
+        max_delay_ = static_cast<int>(sample_rate_ * 5.0f) + 4;
         for (auto& line : lines_) {
             line.prepare(max_delay_);
         }
@@ -77,18 +81,10 @@ public:
         if (ctx.should_reset_dsp_state())
             for (auto& line : lines_) line.reset();
 
-        if (state().get_value(kDelayBypass) >= 0.5f) {
-            for (std::size_t ch = 0; ch < channels; ++ch) {
-                auto in = input.channel(ch); auto out = output.channel(ch);
-                for (std::size_t i = 0; i < frames; ++i) out[i] = in[i];
-            }
-            clear_extra(output, channels);
-            return;
-        }
-
-        const float mix = std::clamp(state().get_value(kDelayMix) / 100.0f, 0.0f, 1.0f);
-        const float fb = std::clamp(state().get_value(kFeedback), 0.0f, 0.95f);
-        float delay_samples = state().get_value(kTimeMs) / 1000.0f * sample_rate_;
+        const float mix = std::clamp(state().get_value(kDelayMix), 0.0f, 1.0f);
+        const float fb = std::clamp(state().get_value(kFeedback), 0.0f, 0.9f);
+        // Time parameter is in seconds.
+        float delay_samples = state().get_value(kTimeMs) * sample_rate_;
         delay_samples = std::clamp(delay_samples, 1.0f,
                                    static_cast<float>(max_delay_ - 1));
 
@@ -118,7 +114,7 @@ private:
         }
     }
     float sample_rate_ = 48000.0f;
-    int max_delay_ = 96004;
+    int max_delay_ = 240004;
     std::array<signal::DelayLine, 8> lines_{};
 };
 

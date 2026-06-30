@@ -10,11 +10,13 @@
 namespace pulp::examples::classic {
 
 inline std::unique_ptr<view::View> build_ping_pong_editor(state::StateStore& store) {
+    // Knob order mirrors the reference editor: Bal, Time, Fbk, Mix. No bypass.
     return build_effect_editor(store, EffectEditorSpec{
         .title = "PING-PONG",
         .subtitle = "stereo bouncing echo",
-        .knobs = {{kPingTime, "Time"}, {kPingFeedback, "Feedback"}, {kPingMix, "Mix"}},
-        .bypass_id = kPingBypass,
+        .knobs = {{kPingBalance, "Bal"}, {kPingTime, "Time"},
+                  {kPingFeedback, "Fbk"}, {kPingMix, "Mix"}},
+        .has_bypass = false,
     });
 }
 

@@ -10,7 +10,6 @@ using pulp::examples::classic::create_delay;
 using pulp::examples::classic::kTimeMs;
 using pulp::examples::classic::kFeedback;
 using pulp::examples::classic::kDelayMix;
-using pulp::examples::classic::kDelayBypass;
 namespace v = pulp::format::validation;
 
 namespace {
@@ -32,9 +31,9 @@ std::vector<float> render(format::HeadlessHost& h, const std::vector<float>& mon
 TEST_CASE("Delay reproduces the input delayed by the set time", "[delay]") {
     format::HeadlessHost h(create_delay);
     h.prepare(48000.0, 2048);
-    h.state().set_value(kTimeMs, 10.0f);     // 480 samples @ 48k
+    h.state().set_value(kTimeMs, 0.01f);     // 10 ms → 480 samples @ 48k
     h.state().set_value(kFeedback, 0.0f);
-    h.state().set_value(kDelayMix, 100.0f);  // wet only
+    h.state().set_value(kDelayMix, 1.0f);    // wet only
 
     std::vector<float> impulse(2048, 0.0f);
     impulse[0] = 1.0f;
@@ -61,9 +60,9 @@ TEST_CASE("Delay feedback produces repeating, decaying echoes", "[delay]") {
     format::HeadlessHost h(create_delay);
     h.prepare(48000.0, 4096);
     const float time_ms = 5.0f;                 // 240 samples @ 48k
-    h.state().set_value(kTimeMs, time_ms);
+    h.state().set_value(kTimeMs, time_ms / 1000.0f);  // Time is in seconds
     h.state().set_value(kFeedback, 0.9f);
-    h.state().set_value(kDelayMix, 100.0f);
+    h.state().set_value(kDelayMix, 1.0f);
     std::vector<float> impulse(4096, 0.0f); impulse[0] = 1.0f;
     auto out = render(h, impulse);
     REQUIRE(v::check_finite(out));
@@ -82,12 +81,15 @@ TEST_CASE("Delay feedback produces repeating, decaying echoes", "[delay]") {
     REQUIRE(e3 < e2);
 }
 
-TEST_CASE("Delay bypass passes a time-varying signal through unchanged", "[delay]") {
+TEST_CASE("Delay with mix=0 passes the dry signal through unchanged", "[delay]") {
     format::HeadlessHost h(create_delay);
     h.prepare(48000.0, 512);
-    h.state().set_value(kDelayBypass, 1.0f);
+    h.state().set_value(kTimeMs, 0.01f);   // 10 ms — would be audible if mixed in
+    h.state().set_value(kFeedback, 0.5f);  // feedback fills the line but stays wet
+    h.state().set_value(kDelayMix, 0.0f);  // fully dry: output == input
     std::vector<float> ramp(512);
     for (int n = 0; n < 512; ++n) ramp[n] = -0.5f + (float)n / 511.0f;
     auto out = render(h, ramp);
+    REQUIRE(v::check_finite(out));
     for (int n = 0; n < 512; ++n) REQUIRE(std::fabs(out[n] - ramp[n]) < 1e-6f);
 }

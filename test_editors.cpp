@@ -129,5 +129,5 @@ TEST_CASE("Flanger editor matches baseline", "[editor]")        { check_editor<F
 TEST_CASE("Ping-Pong editor matches baseline", "[editor]")      { check_editor<PingPongProcessor>("ping-pong"); }
 TEST_CASE("Phaser editor matches baseline", "[editor]")         { check_editor<PhaserProcessor>("phaser"); }
 TEST_CASE("Distortion editor matches baseline", "[editor]")     { check_editor<DistortionProcessor>("distortion"); }
-TEST_CASE("Auto-Pan editor matches baseline", "[editor]")       { check_editor<PanningProcessor>("panning"); }
+TEST_CASE("Panning editor matches baseline", "[editor]")       { check_editor<PanningProcessor>("panning"); }
 TEST_CASE("Robotization editor matches baseline", "[editor]")   { check_editor<RobotizationProcessor>("robotization"); }

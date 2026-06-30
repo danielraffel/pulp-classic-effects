@@ -1,4 +1,4 @@
-# Parametric EQ — three-band equalizer (low shelf / mid bell / high shelf). See README.md.
+# Parametric EQ — single-band selectable parametric EQ (6 filter types). See README.md.
 
 if(PULP_BUILD_TESTS)
     add_executable(parametric-eq-test test_parametric_eq.cpp)

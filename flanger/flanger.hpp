@@ -1,33 +1,53 @@
 #pragma once
 
-// Flanger — a short, LFO-swept delay with feedback, blended with the dry signal.
+// Flanger — a short, LFO-swept fractional delay summed with the dry signal, with
+// a feedback path that sharpens the swept comb-filter notches into the
+// characteristic "jet plane" whoosh.
 //
-// Clean-room textbook flanger: a low-frequency oscillator sweeps the read
-// position of a very short fractional delay (sub-millisecond up to a few ms).
-// Unlike the chorus, a feedback path routes the delayed copy back into the
-// line, sharpening the swept comb-filter notches into the characteristic
-// "jet plane" whoosh. Built on Pulp's own pulp::signal::DelayLine + Oscillator;
-// no third-party effect source was read. See the README for the algorithmic
-// reference.
+// Clean-room textbook flanger built on the Pulp SDK. A low-frequency oscillator
+// sweeps the read position of a very short fractional delay line (a few ms). The
+// delayed copy is added to the dry input (output = dry + delayed·depth·polarity),
+// and is fed back into the line (line = dry + delayed·feedback) to make the comb
+// resonant. The control surface follows Reiss & McPherson's *Audio Effects*
+// flanger discussion and the JUCE "Flanger" reference layout:
+//
+//   Delay (s)   base read offset — sets the centre comb frequency
+//   Width (s)   sweep amount added on top of Delay by the LFO
+//   Depth       wet add amount (0 = dry only, 1 = full comb)
+//   Feedback    recirculation gain into the delay line (resonance)
+//   Inverted    flips the polarity of the wet add (notches <-> peaks)
+//   LFO Rate    sweep frequency in Hz
+//   Waveform    LFO shape: Sine / Triangle / Sawtooth / Inv. Sawtooth
+//   Interp      fractional-read interpolation: Nearest / Linear / Cubic
+//   Stereo      quarter-cycle LFO phase offset on the right channel
+//
+// The LFO and the interpolating circular buffer are implemented here by hand
+// (the SDK DelayLine only offers linear interpolation, and we need the four LFO
+// shapes plus nearest/linear/cubic reads). No third-party effect source was
+// copied; see the README for the algorithmic reference.
 
 #include <pulp/format/processor.hpp>
 #include <pulp/view/view.hpp>
-#include <pulp/signal/delay_line.hpp>
-#include <pulp/signal/oscillator.hpp>
 
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstddef>
 #include <memory>
+#include <vector>
 
 namespace pulp::examples::classic {
 
 enum FlangerParams : state::ParamID {
-    kFlangerRate     = 1,  // 0.05..8 Hz
-    kFlangerDepth    = 2,  // 0..4 ms sweep
-    kFlangerFeedback = 3,  // 0..0.9
-    kFlangerMix      = 4,  // 0..100 %
-    kFlangerBypass   = 5,
+    kFlangerDelay    = 1,  // 0.001..0.02 s   base delay
+    kFlangerWidth    = 2,  // 0.001..0.02 s   sweep width
+    kFlangerDepth    = 3,  // 0..1            wet add amount
+    kFlangerFeedback = 4,  // 0..0.5          recirculation gain
+    kFlangerInverted = 5,  // toggle          wet polarity
+    kFlangerRate     = 6,  // 0.05..2 Hz      LFO frequency
+    kFlangerWaveform = 7,  // 0..3            Sine/Triangle/Saw/Inv.Saw
+    kFlangerInterp   = 8,  // 0..2            Nearest/Linear/Cubic
+    kFlangerStereo   = 9,  // toggle          per-channel LFO phase offset
 };
 
 // Defined out-of-line in flanger_editor.hpp (included at the bottom of this
@@ -49,26 +69,37 @@ public:
     }
 
     void define_parameters(state::StateStore& store) override {
-        store.add_parameter({.id = kFlangerRate, .name = "Rate", .unit = "Hz",
-                             .range = state::ParamRange::with_centre(0.05f, 8.0f, 0.5f, 0.5f)});
-        store.add_parameter({.id = kFlangerDepth, .name = "Depth", .unit = "ms",
-                             .range = {0.0f, 4.0f, 2.0f, 0.0f}});
+        store.add_parameter({.id = kFlangerDelay, .name = "Delay", .unit = "s",
+                             .range = state::ParamRange::linear(0.001f, 0.02f, 0.0025f)});
+        store.add_parameter({.id = kFlangerWidth, .name = "Width", .unit = "s",
+                             .range = state::ParamRange::linear(0.001f, 0.02f, 0.01f)});
+        store.add_parameter({.id = kFlangerDepth, .name = "Depth", .unit = "",
+                             .range = state::ParamRange::linear(0.0f, 1.0f, 1.0f)});
         store.add_parameter({.id = kFlangerFeedback, .name = "Feedback", .unit = "",
-                             .range = {0.0f, 0.9f, 0.5f, 0.0f}});
-        store.add_parameter({.id = kFlangerMix, .name = "Mix", .unit = "%",
-                             .range = {0.0f, 100.0f, 50.0f, 0.0f}});
-        store.add_parameter({.id = kFlangerBypass, .name = "Bypass", .unit = "",
+                             .range = state::ParamRange::linear(0.0f, 0.5f, 0.0f)});
+        store.add_parameter({.id = kFlangerInverted, .name = "Inverted", .unit = "",
+                             .range = {0.0f, 1.0f, 0.0f, 1.0f}});
+        store.add_parameter({.id = kFlangerRate, .name = "LFO Rate", .unit = "Hz",
+                             .range = state::ParamRange::linear(0.05f, 2.0f, 0.2f)});
+        store.add_parameter({.id = kFlangerWaveform, .name = "Waveform", .unit = "",
+                             .range = {0.0f, 3.0f, 0.0f, 1.0f}});  // Sine/Tri/Saw/Inv.Saw
+        store.add_parameter({.id = kFlangerInterp, .name = "Interp", .unit = "",
+                             .range = {0.0f, 2.0f, 1.0f, 1.0f}});  // Nearest/Linear/Cubic
+        store.add_parameter({.id = kFlangerStereo, .name = "Stereo", .unit = "",
                              .range = {0.0f, 1.0f, 0.0f, 1.0f}});
     }
 
     void prepare(const format::PrepareContext& ctx) override {
         sample_rate_ = static_cast<float>(ctx.sample_rate);
-        base_samples_ = 0.001f * sample_rate_;                    // ~1 ms centre
-        max_delay_ = static_cast<int>(sample_rate_ * 0.006f) + 4; // 6 ms headroom
-        for (auto& line : lines_) line.prepare(max_delay_);
-        lfo_.set_sample_rate(sample_rate_);
-        lfo_.set_waveform(signal::Oscillator::Waveform::sine);
-        lfo_.reset();
+        // Delay (max 0.02 s) + Width (max 0.02 s) → 0.04 s of read range; +4 for
+        // cubic's r0-1..r0+2 neighbourhood and the fractional ceiling.
+        buf_len_ = static_cast<int>(kMaxDelaySecs * sample_rate_) + 4;
+        if (buf_len_ < 8) buf_len_ = 8;
+        for (auto& line : lines_) {
+            line.assign(static_cast<std::size_t>(buf_len_), 0.0f);
+        }
+        write_pos_ = 0;
+        phase_ = 0.0f;
     }
 
     void process(audio::BufferView<float>& output,
@@ -80,59 +111,118 @@ public:
         const std::size_t frames = output.num_samples();
 
         if (ctx.should_reset_dsp_state()) {
-            for (auto& line : lines_) line.reset();
-            lfo_.reset();
+            for (auto& line : lines_) std::fill(line.begin(), line.end(), 0.0f);
+            write_pos_ = 0;
+            phase_ = 0.0f;
         }
 
-        if (state().get_value(kFlangerBypass) >= 0.5f) {
-            for (std::size_t ch = 0; ch < channels; ++ch) {
-                auto in = input.channel(ch); auto out = output.channel(ch);
-                for (std::size_t i = 0; i < frames; ++i) out[i] = in[i];
-            }
-            clear_extra(output, channels);
-            return;
-        }
+        const float delay_s = state().get_value(kFlangerDelay);
+        const float width_s = state().get_value(kFlangerWidth);
+        const float depth   = std::clamp(state().get_value(kFlangerDepth), 0.0f, 1.0f);
+        const float fb      = std::clamp(state().get_value(kFlangerFeedback), 0.0f, 0.5f);
+        const float invert  = state().get_value(kFlangerInverted) >= 0.5f ? -1.0f : 1.0f;
+        const float rate    = state().get_value(kFlangerRate);
+        const int   wave    = static_cast<int>(std::lround(state().get_value(kFlangerWaveform)));
+        const int   interp  = static_cast<int>(std::lround(state().get_value(kFlangerInterp)));
+        const bool  stereo  = state().get_value(kFlangerStereo) >= 0.5f;
 
-        lfo_.set_frequency(state().get_value(kFlangerRate));
-        const float mix = std::clamp(state().get_value(kFlangerMix) / 100.0f, 0.0f, 1.0f);
-        const float fb = std::clamp(state().get_value(kFlangerFeedback), 0.0f, 0.9f);
-        float depth = state().get_value(kFlangerDepth) / 1000.0f * sample_rate_;
-        // The unipolar sweep rides on top of the base delay: read_pos =
-        // base + depth·mod with mod ∈ [0,1], so the minimum read position is
-        // always `base` (no underrun). Cap the maximum so base + depth stays
-        // inside the allocated line rather than at the old, far-too-tight
-        // `base - 1` (which silently throttled the 0–4 ms knob to ~1 ms).
-        depth = std::clamp(depth, 0.0f,
-                           std::max(0.0f, static_cast<float>(max_delay_) - base_samples_ - 2.0f));
+        const float buf_len_f = static_cast<float>(buf_len_);
+        // Keep the read fully inside the line: leave a 3-sample margin for the
+        // cubic neighbourhood and never let the read collide with the write head.
+        const float max_d = buf_len_f - 3.0f;
+        const float phase_inc = rate / sample_rate_;
 
         for (std::size_t i = 0; i < frames; ++i) {
-            const float mod = 0.5f * (lfo_.next() + 1.0f);   // 0..1 unipolar
-            const float read_pos = base_samples_ + depth * mod;
             for (std::size_t ch = 0; ch < channels; ++ch) {
-                auto& line = lines_[ch];
+                const float ph = (stereo && ch != 0) ? wrap01(phase_ + 0.25f) : phase_;
+                float d_samp = (delay_s + width_s * lfo(ph, wave)) * sample_rate_;
+                d_samp = std::clamp(d_samp, 1.0f, max_d);
+
+                float read_pos = static_cast<float>(write_pos_) - d_samp;
+                read_pos -= buf_len_f * std::floor(read_pos / buf_len_f);  // → [0, buf_len)
+
+                const float delayed = interp_read(lines_[ch], read_pos, interp);
                 const float dry = input.channel(ch)[i];
-                const float wet = line.read(read_pos);
-                float fed = dry + wet * fb;
-                if (std::fabs(fed) < 1e-30f) fed = 0.0f;   // flush feedback denormals
-                line.push(fed);
-                output.channel(ch)[i] = dry * (1.0f - mix) + wet * mix;
+                output.channel(ch)[i] = dry + delayed * depth * invert;
+
+                float fed = dry + delayed * fb;
+                if (std::fabs(fed) < 1e-30f) fed = 0.0f;  // flush feedback denormals
+                lines_[ch][static_cast<std::size_t>(write_pos_)] = fed;
             }
+            if (++write_pos_ >= buf_len_) write_pos_ = 0;
+            phase_ += phase_inc;
+            if (phase_ >= 1.0f) phase_ -= 1.0f;
         }
-        clear_extra(output, channels);
+
+        for (std::size_t ch = channels; ch < output.num_channels(); ++ch) {
+            auto o = output.channel(ch);
+            for (std::size_t i = 0; i < frames; ++i) o[i] = 0.0f;
+        }
     }
 
 private:
-    static void clear_extra(audio::BufferView<float>& out, std::size_t written) {
-        for (std::size_t ch = written; ch < out.num_channels(); ++ch) {
-            auto o = out.channel(ch);
-            for (std::size_t i = 0; i < out.num_samples(); ++i) o[i] = 0.0f;
+    static constexpr float kMaxDelaySecs = 0.04f;
+    static constexpr float kTau = 6.283185307179586f;
+
+    // Unipolar LFO in [0, 1]; phase is in [0, 1). Shapes follow the standard
+    // textbook flanger sweep waveforms.
+    static float lfo(float phase, int waveform) {
+        switch (waveform) {
+            case 1:  // Triangle
+                if (phase < 0.25f) return 0.5f + 2.0f * phase;
+                if (phase < 0.75f) return 1.0f - 2.0f * (phase - 0.25f);
+                return 2.0f * (phase - 0.75f);
+            case 2:  // Sawtooth (rising, wrapped to start mid-scale)
+                return phase < 0.5f ? 0.5f + phase : phase - 0.5f;
+            case 3:  // Inverse sawtooth (falling)
+                return phase < 0.5f ? 0.5f - phase : 1.5f - phase;
+            case 0:  // Sine
+            default:
+                return 0.5f + 0.5f * std::sin(kTau * phase);
         }
     }
+
+    // Read the circular line at a fractional position using the selected
+    // interpolation. read_pos is already wrapped into [0, buf_len).
+    float interp_read(const std::vector<float>& line, float read_pos, int interp) const {
+        const int len = buf_len_;
+        int r0 = static_cast<int>(std::floor(read_pos)) % len;
+        if (r0 < 0) r0 += len;
+        const float frac = read_pos - std::floor(read_pos);
+
+        switch (interp) {
+            case 0: {  // Nearest (floor)
+                return line[static_cast<std::size_t>(r0)];
+            }
+            case 2: {  // Cubic (Catmull-Rom)
+                const float sm1 = line[static_cast<std::size_t>((r0 - 1 + len) % len)];
+                const float s0  = line[static_cast<std::size_t>(r0)];
+                const float s1  = line[static_cast<std::size_t>((r0 + 1) % len)];
+                const float s2  = line[static_cast<std::size_t>((r0 + 2) % len)];
+                const float a0 = -0.5f * sm1 + 1.5f * s0 - 1.5f * s1 + 0.5f * s2;
+                const float a1 = sm1 - 2.5f * s0 + 2.0f * s1 - 0.5f * s2;
+                const float a2 = -0.5f * sm1 + 0.5f * s1;
+                return ((a0 * frac + a1) * frac + a2) * frac + s0;
+            }
+            case 1:  // Linear
+            default: {
+                const float s0 = line[static_cast<std::size_t>(r0)];
+                const float s1 = line[static_cast<std::size_t>((r0 + 1) % len)];
+                return s0 + frac * (s1 - s0);
+            }
+        }
+    }
+
+    static float wrap01(float x) {
+        x -= std::floor(x);
+        return x;
+    }
+
     float sample_rate_ = 48000.0f;
-    float base_samples_ = 48.0f;
-    int max_delay_ = 292;
-    std::array<signal::DelayLine, 8> lines_{};
-    signal::Oscillator lfo_;
+    int buf_len_ = 8;
+    int write_pos_ = 0;
+    float phase_ = 0.0f;
+    std::array<std::vector<float>, 8> lines_{};
 };
 
 inline std::unique_ptr<format::Processor> create_flanger() {

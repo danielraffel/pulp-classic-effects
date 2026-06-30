@@ -11,15 +11,17 @@
 
 using namespace pulp;
 using pulp::examples::classic::create_tremolo;
-using pulp::examples::classic::kBypass;
-using pulp::examples::classic::kDepth;
+using pulp::examples::classic::kTremDepth;
 using pulp::examples::classic::kRate;
+using pulp::examples::classic::kTremWaveform;
+using pulp::examples::classic::TremoloWaveform;
 namespace v = pulp::format::validation;
 
 namespace {
 
-// Render `frames` of constant 1.0 input and return the interleaved-by-channel
-// output of channel 0.
+// Render `frames` of constant 1.0 input and return channel 0's output. With a
+// constant 1.0 input the output samples are exactly the per-sample tremolo gain,
+// which makes the LFO behaviour directly observable.
 std::vector<float> render_constant(format::HeadlessHost& host, int frames) {
     const int block = 512;
     std::vector<float> out_ch0;
@@ -37,6 +39,43 @@ std::vector<float> render_constant(format::HeadlessHost& host, int frames) {
     return out_ch0;
 }
 
+// Render a constant input through a freshly prepared host with the given
+// waveform/rate/depth. Each call resets phase so waveforms are comparable.
+std::vector<float> render_waveform(TremoloWaveform wf, float rate, float depth,
+                                   int frames) {
+    format::HeadlessHost host(create_tremolo);
+    host.prepare(48000.0, 512);
+    host.state().set_value(kTremWaveform, static_cast<float>(static_cast<int>(wf)));
+    host.state().set_value(kRate, rate);
+    host.state().set_value(kTremDepth, depth);
+    return render_constant(host, frames);
+}
+
+// Count upward crossings of `threshold` — one per LFO cycle for shapes that
+// pass smoothly through the midpoint, which lets us check the modulation rate.
+int count_up_crossings(const std::vector<float>& x, float threshold) {
+    int crossings = 0;
+    for (std::size_t i = 1; i < x.size(); ++i)
+        if (x[i - 1] < threshold && x[i] >= threshold) ++crossings;
+    return crossings;
+}
+
+float min_of(const std::vector<float>& x) {
+    return *std::min_element(x.begin(), x.end());
+}
+float max_of(const std::vector<float>& x) {
+    return *std::max_element(x.begin(), x.end());
+}
+
+// Mean absolute difference between two equal-length signals.
+float mean_abs_diff(const std::vector<float>& a, const std::vector<float>& b) {
+    const std::size_t n = std::min(a.size(), b.size());
+    if (n == 0) return 0.0f;
+    double acc = 0.0;
+    for (std::size_t i = 0; i < n; ++i) acc += std::fabs(a[i] - b[i]);
+    return static_cast<float>(acc / static_cast<double>(n));
+}
+
 } // namespace
 
 TEST_CASE("Tremolo descriptor and parameters", "[tremolo]") {
@@ -44,7 +83,8 @@ TEST_CASE("Tremolo descriptor and parameters", "[tremolo]") {
     auto desc = host.descriptor();
     REQUIRE(desc.name == "Tremolo");
     REQUIRE(desc.category == format::PluginCategory::Effect);
-    REQUIRE(host.state().param_count() == 4);
+    // Depth, Rate, Waveform — no bypass parameter.
+    REQUIRE(host.state().param_count() == 3);
 }
 
 TEST_CASE("Tremolo at full depth modulates amplitude between ~0 and ~1",
@@ -52,53 +92,80 @@ TEST_CASE("Tremolo at full depth modulates amplitude between ~0 and ~1",
     format::HeadlessHost host(create_tremolo);
     host.prepare(48000.0, 512);
     host.state().set_value(kRate, 8.0f);   // fast enough to span a period quickly
-    host.state().set_value(kDepth, 100.0f);
+    host.state().set_value(kTremDepth, 1.0f);  // full depth
 
     // 48k / 8 Hz = 6000 samples per cycle; render two cycles.
     auto out = render_constant(host, 12000);
 
     REQUIRE(v::check_finite(out));
-    const float lo = *std::min_element(out.begin(), out.end());
-    const float hi = *std::max_element(out.begin(), out.end());
     // Constant 1.0 input * gain in [0,1]: the trough should approach 0 and the
     // crest should approach 1 over a full LFO cycle.
-    REQUIRE(lo < 0.1f);
-    REQUIRE(hi > 0.9f);
+    REQUIRE(min_of(out) < 0.1f);
+    REQUIRE(max_of(out) > 0.9f);
     REQUIRE(v::check_peak_below(out, 1.0001f)); // never amplifies past unity
-}
-
-TEST_CASE("Tremolo full-depth triangle at low rate never exceeds unity",
-          "[tremolo]") {
-    // The band-limited triangle's leaky integrator can overshoot ±1 at startup;
-    // full-depth gain must still stay <= unity (regression for the LFO clamp).
-    format::HeadlessHost host(create_tremolo);
-    host.prepare(48000.0, 512);
-    host.state().set_value(pulp::examples::classic::kWaveform, 1.0f); // triangle
-    host.state().set_value(kRate, 0.1f);                              // slow
-    host.state().set_value(kDepth, 100.0f);
-
-    auto out = render_constant(host, 8192);
-    REQUIRE(v::check_finite(out));
-    REQUIRE(v::check_peak_below(out, 1.0001f));
 }
 
 TEST_CASE("Tremolo at zero depth is unity gain", "[tremolo]") {
     format::HeadlessHost host(create_tremolo);
     host.prepare(48000.0, 512);
-    host.state().set_value(kDepth, 0.0f);
+    host.state().set_value(kTremDepth, 0.0f);
 
     auto out = render_constant(host, 2048);
     for (float s : out) REQUIRE(std::fabs(s - 1.0f) < 1.0e-6f);
 }
 
-TEST_CASE("Tremolo bypass passes through", "[tremolo]") {
-    format::HeadlessHost host(create_tremolo);
-    host.prepare(48000.0, 512);
-    host.state().set_value(kBypass, 1.0f);
-    host.state().set_value(kDepth, 100.0f); // ignored when bypassed
+TEST_CASE("Tremolo depth controls the modulation extent", "[tremolo]") {
+    // Sine LFO, same rate, two depths. The gain law g = (1 - d) + d*m bottoms
+    // out at (1 - d): deeper modulation reaches a lower trough.
+    const int frames = 12000;  // two cycles at 8 Hz / 48k
+    auto full = render_waveform(TremoloWaveform::Sine, 8.0f, 1.0f, frames);
+    auto half = render_waveform(TremoloWaveform::Sine, 8.0f, 0.5f, frames);
 
-    auto out = render_constant(host, 1024);
-    for (float s : out) REQUIRE(std::fabs(s - 1.0f) < 1.0e-6f);
+    REQUIRE(v::check_finite(full));
+    REQUIRE(v::check_finite(half));
+
+    // Full depth digs essentially to silence; half depth only to ~0.5.
+    REQUIRE(min_of(full) < 0.05f);
+    REQUIRE(min_of(half) > 0.45f);
+    REQUIRE(min_of(half) < 0.55f);
+    // Less depth => a higher trough => a smaller peak-to-trough swing.
+    const float swing_full = max_of(full) - min_of(full);
+    const float swing_half = max_of(half) - min_of(half);
+    REQUIRE(swing_half < swing_full);
+}
+
+TEST_CASE("Tremolo modulates amplitude at the LFO rate", "[tremolo]") {
+    // One sine cycle produces exactly one upward midpoint crossing, so the
+    // crossing count over a known span tracks rate * duration.
+    const float rate = 5.0f;
+    const int frames = 48000;  // 1 second at 48k => ~5 cycles
+    auto out = render_waveform(TremoloWaveform::Sine, rate, 1.0f, frames);
+
+    REQUIRE(v::check_finite(out));
+    const int cycles = count_up_crossings(out, 0.5f);
+    REQUIRE(cycles >= 4);
+    REQUIRE(cycles <= 6);
+}
+
+TEST_CASE("Tremolo waveforms produce distinct modulation", "[tremolo]") {
+    // Render one cycle of each shape at full depth and confirm every pair is
+    // audibly different (mean absolute gain difference well above noise).
+    const float rate = 8.0f;
+    const int frames = 6000;  // one cycle at 8 Hz / 48k
+    const TremoloWaveform shapes[] = {
+        TremoloWaveform::Sine,     TremoloWaveform::Triangle,
+        TremoloWaveform::Sawtooth, TremoloWaveform::InvSaw,
+        TremoloWaveform::Square,   TremoloWaveform::SqSloped,
+    };
+    std::vector<std::vector<float>> rendered;
+    for (auto wf : shapes) {
+        auto out = render_waveform(wf, rate, 1.0f, frames);
+        REQUIRE(v::check_finite(out));
+        rendered.push_back(std::move(out));
+    }
+    for (std::size_t a = 0; a < rendered.size(); ++a)
+        for (std::size_t b = a + 1; b < rendered.size(); ++b)
+            REQUIRE(mean_abs_diff(rendered[a], rendered[b]) > 0.01f);
 }
 
 TEST_CASE("Tremolo parameters round-trip and state is stable", "[tremolo]") {
@@ -108,6 +175,8 @@ TEST_CASE("Tremolo parameters round-trip and state is stable", "[tremolo]") {
         REQUIRE(v::check_param_round_trip(info.range, info.range.default_value).ok);
     }
     host.state().set_value(kRate, 6.0f);
-    host.state().set_value(kDepth, 75.0f);
+    host.state().set_value(kTremDepth, 0.75f);
+    host.state().set_value(kTremWaveform,
+                           static_cast<float>(static_cast<int>(TremoloWaveform::Square)));
     REQUIRE(v::check_state_round_trip(host).ok);
 }

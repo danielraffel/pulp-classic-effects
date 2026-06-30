@@ -1,29 +1,32 @@
 # Pitch Shift
 
-Shifts pitch by **±12 semitones** without changing duration, using a two-tap
-crossfading delay line. The read position is swept at a rate set by the pitch
-ratio (`2^(semitones/12)`); two taps half a cycle apart are crossfaded so the
-discontinuity when a tap wraps is masked.
+Shifts pitch by **±12 semitones** without changing duration, using a **phase
+vocoder**: a short-time Fourier transform estimates each bin's true frequency,
+the phases are advanced by the pitch ratio, and the frames are resynthesized and
+overlap-added.
+
+| Param | Range | Notes |
+|-------|-------|-------|
+| Shift | -12…+12 st | pitch shift in semitones (0 = unison) |
+| FFT Size | 256 / 512 / 1024 / 2048 / 4096 | STFT frame size (default 512) |
+| Hop | 1/2 / 1/4 / 1/8 | analysis/synthesis overlap (default 1/8) |
+| Window | Bartlett / Hann / Hamming | analysis window (default Hann) |
 
 ## What it validates (Pulp SDK contract)
 
-- An effect `Processor` with a semitone parameter, wet/dry mix, and bypass.
-- Reuse of a Pulp `pulp::signal` primitive (`DelayLine`, interpolated read).
+- An effect `Processor` with a semitone parameter plus discrete FFT/hop/window
+  selectors, and a reported latency of one FFT frame.
+- Reuse of a Pulp `pulp::signal` primitive (`Fft`, radix-2, vDSP-accelerated).
 - Headless behavioral tests using `pulp/format/validation_assertions.hpp` that
-  verify the *actual pitch change* by autocorrelation: shifting up an octave
-  halves the detected period; shifting down doubles it. A passthrough fails them.
+  verify the *actual pitch change*: shifting up an octave halves the detected
+  period; shifting down doubles it; Shift = 0 preserves the period.
 
 ## Algorithm
 
-```
-ratio = 2^(semitones / 12)
-phase += (1 - ratio) / window        # per sample, wrapped to [0, 1)
-tap k (k = 0, 1):  ph_k = frac(phase + 0.5·k)
-                   y += line.read(ph_k · window) · sin(pi · ph_k)
-output = (1 - mix)·dry + mix·y
-```
-
-Unison (0 st) and bypass short-circuit to exact passthrough (the delay-line
-method is not bit-identity at ratio 1). Pulp also ships a higher-fidelity
-phase-vocoder pitch/time engine; this example uses the simpler, legible
-delay-line method. This is a standard textbook pitch shifter.
+STFT analysis with a √window → per-bin true-frequency estimate via the
+principal-argument of the heterodyned phase deviation → output phase advanced by
+`ratio` → inverse FFT → resample by 1/ratio with the √synthesis window →
+overlap-add. The pitch ratio is snapped to the integer-hop grid to suppress
+inter-hop phase drift. Clean-room implementation from the textbook phase-vocoder
+recipe (Reiss & McPherson); no third-party effect source was copied. References
+in the repo [README](../README.md#credits).

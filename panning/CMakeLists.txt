@@ -1,4 +1,4 @@
-# Auto-Pan — equal-power LFO stereo panner. See README.md.
+# Panning — static stereo panner (selectable panning law). See README.md.
 
 if(PULP_BUILD_TESTS)
     add_executable(panning-test test_panning.cpp)
@@ -9,7 +9,7 @@ endif()
 
 pulp_add_plugin(Panning
     FORMATS           VST3 CLAP Standalone
-    PLUGIN_NAME       "Auto-Pan"
+    PLUGIN_NAME       "Panning"
     BUNDLE_ID         "com.pulp.examples.panning"
     MANUFACTURER      "Pulp Examples"
     VERSION           "0.1.0"

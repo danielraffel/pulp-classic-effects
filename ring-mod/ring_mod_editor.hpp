@@ -13,8 +13,12 @@ inline std::unique_ptr<view::View> build_ring_mod_editor(state::StateStore& stor
     return build_effect_editor(store, EffectEditorSpec{
         .title = "RING MOD",
         .subtitle = "metallic carrier modulation",
-        .knobs = {{kCarrierHz, "Carrier"}, {kMix, "Mix"}},
-        .bypass_id = kRmBypass,
+        .controls = {
+            {kRmDepth, "Depth", Control::Kind::Knob},
+            {kRmFreq, "Freq", Control::Kind::Knob},
+            {kRmWaveform, "Wave", Control::Kind::Combo, waveform_labels()},
+        },
+        .has_bypass = false,
     });
 }
 

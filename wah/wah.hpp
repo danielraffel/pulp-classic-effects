@@ -1,17 +1,21 @@
 #pragma once
 
-// Wah — a resonant bandpass swept in frequency.
+// Wah-Wah — a resonant filter whose centre frequency is moved by a manual
+// position, a low-frequency oscillator, an input envelope follower, or a blend
+// of the two automatic sources.
 //
-// Clean-room textbook wah: a state-variable bandpass with adjustable resonance
-// whose centre frequency is either set directly (manual / pedal mode) or driven
-// by the input envelope (envelope / auto-wah mode). Sweeping a resonant peak
-// across the spectrum produces the classic vowel-like "wah". Built on Pulp's own
-// pulp::signal::Svf + BallisticsFilter; no third-party effect source was read.
+// Clean-room textbook wah: a second-order resonant filter (resonant lowpass,
+// constant-peak bandpass, or peaking-EQ section) whose centre frequency is
+// either set directly (Manual mode) or, in Automatic mode, driven by an LFO and
+// an envelope follower blended together. Sweeping a resonant peak across the
+// spectrum produces the classic vowel-like "wah". The biquad is Pulp's own
+// pulp::signal::Biquad (RBJ cookbook coefficients); the LFO, envelope follower,
+// and source-blend are written here from the standard formulas. No third-party
+// effect source was read for the DSP.
 
 #include <pulp/format/processor.hpp>
 #include <pulp/view/view.hpp>
-#include <pulp/signal/svf.hpp>
-#include <pulp/signal/ballistics_filter.hpp>
+#include <pulp/signal/biquad.hpp>
 
 #include <algorithm>
 #include <array>
@@ -21,13 +25,21 @@
 namespace pulp::examples::classic {
 
 enum WahParams : state::ParamID {
-    kWahMode        = 1,  // 0 = manual, 1 = envelope (auto-wah)
-    kWahFreq        = 2,  // 200..3000 Hz (manual centre / envelope base)
-    kWahResonance   = 3,  // 1..20
-    kWahSensitivity = 4,  // 0..4000 Hz envelope sweep span
-    kWahMix         = 5,  // 0..100 %
-    kWahBypass      = 6,
+    kWahMode       = 1,  // 0 = Manual, 1 = Automatic
+    kWahMix        = 2,  // 0..1 wet/dry
+    kWahFreq       = 3,  // 200..1300 Hz manual centre (log)
+    kWahQ          = 4,  // 0.1..20 resonance
+    kWahGain       = 5,  // 0..20 dB
+    kWahFilterType = 6,  // 0 = Res. LP, 1 = Band-Pass, 2 = Peaking
+    kWahLfoRate    = 7,  // 0..5 Hz LFO rate
+    kWahLfoEnvMix  = 8,  // 0 = pure LFO, 1 = pure envelope
+    kWahEnvAttack  = 9,  // 0.0001..0.1 s
+    kWahEnvRelease = 10, // 0.01..1 s
 };
+
+// Centre-frequency span swept by the automatic (LFO / envelope) sources.
+inline constexpr float kWahMinHz = 200.0f;
+inline constexpr float kWahMaxHz = 1300.0f;
 
 // Defined out-of-line in wah_editor.hpp (included at the bottom of this file).
 // Forward-declared so create_view() hands the host the same dark Ink &
@@ -41,39 +53,43 @@ public:
     std::unique_ptr<view::View> create_view() override { return build_wah_editor(state()); }
 
     format::PluginDescriptor descriptor() const override {
-        return {.name = "Wah", .manufacturer = "Pulp Examples",
+        return {.name = "Wah-Wah", .manufacturer = "Pulp Examples",
                 .bundle_id = "com.pulp.examples.wah", .version = "0.1.0",
                 .category = format::PluginCategory::Effect,
                 .input_buses = {{"Audio In", 2}}, .output_buses = {{"Audio Out", 2}}};
     }
 
     void define_parameters(state::StateStore& store) override {
+        // Order mirrors the truce reference parameter list.
         store.add_parameter({.id = kWahMode, .name = "Mode", .unit = "",
-                             .range = {0.0f, 1.0f, 0.0f, 1.0f}});   // stepped: 0=manual, 1=envelope
-        store.add_parameter({.id = kWahFreq, .name = "Freq", .unit = "Hz",
-                             .range = state::ParamRange::with_centre(200.0f, 3000.0f, 600.0f, 600.0f)});
-        store.add_parameter({.id = kWahResonance, .name = "Resonance", .unit = "",
-                             .range = state::ParamRange::with_centre(1.0f, 20.0f, 6.0f, 6.0f)});
-        store.add_parameter({.id = kWahSensitivity, .name = "Sensitivity", .unit = "Hz",
-                             .range = {0.0f, 4000.0f, 3000.0f, 0.0f}});
-        store.add_parameter({.id = kWahMix, .name = "Mix", .unit = "%",
-                             .range = {0.0f, 100.0f, 100.0f, 0.0f}});
-        store.add_parameter({.id = kWahBypass, .name = "Bypass", .unit = "",
-                             .range = {0.0f, 1.0f, 0.0f, 1.0f}});
+                             .range = {0.0f, 1.0f, 0.0f, 1.0f}});  // 0=Manual, 1=Automatic
+        store.add_parameter({.id = kWahMix, .name = "Mix", .unit = "",
+                             .range = state::ParamRange::linear(0.0f, 1.0f, 0.5f)});
+        // Logarithmic frequency sweep: centre the normalized midpoint on the
+        // geometric mean of [200, 1300] so the curve behaves like truce's log range.
+        store.add_parameter({.id = kWahFreq, .name = "Frequency", .unit = "Hz",
+                             .range = state::ParamRange::with_centre(200.0f, 1300.0f, 510.0f, 300.0f)});
+        store.add_parameter({.id = kWahQ, .name = "Q", .unit = "",
+                             .range = state::ParamRange::linear(0.1f, 20.0f, 10.0f)});
+        store.add_parameter({.id = kWahGain, .name = "Gain", .unit = "dB",
+                             .range = state::ParamRange::linear(0.0f, 20.0f, 20.0f)});
+        store.add_parameter({.id = kWahFilterType, .name = "Filter Type", .unit = "",
+                             .range = {0.0f, 2.0f, 0.0f, 1.0f}});  // 0=Res.LP, 1=Band-Pass, 2=Peaking
+        store.add_parameter({.id = kWahLfoRate, .name = "LFO Rate", .unit = "Hz",
+                             .range = state::ParamRange::linear(0.0f, 5.0f, 2.0f)});
+        store.add_parameter({.id = kWahLfoEnvMix, .name = "LFO/Env Mix", .unit = "",
+                             .range = state::ParamRange::linear(0.0f, 1.0f, 0.8f)});
+        store.add_parameter({.id = kWahEnvAttack, .name = "Env Attack", .unit = "s",
+                             .range = state::ParamRange::linear(0.0001f, 0.1f, 0.002f)});
+        store.add_parameter({.id = kWahEnvRelease, .name = "Env Release", .unit = "s",
+                             .range = state::ParamRange::linear(0.01f, 1.0f, 0.3f)});
     }
 
     void prepare(const format::PrepareContext& ctx) override {
         sample_rate_ = static_cast<float>(ctx.sample_rate);
-        for (auto& f : filters_) {
-            f.set_sample_rate(sample_rate_);
-            f.set_mode(signal::Svf::Mode::bandpass);
-            f.reset();
-        }
-        detector_.prepare(sample_rate_);
-        detector_.set_mode(signal::BallisticsFilter::Mode::peak);
-        detector_.set_attack_ms(5.0f);
-        detector_.set_release_ms(80.0f);
-        detector_.reset();
+        for (auto& f : filters_) f.reset();
+        envelopes_.fill(0.0f);
+        lfo_phase_ = 0.0f;
     }
 
     void process(audio::BufferView<float>& output,
@@ -86,48 +102,72 @@ public:
 
         if (ctx.should_reset_dsp_state()) {
             for (auto& f : filters_) f.reset();
-            detector_.reset();
+            envelopes_.fill(0.0f);
+            lfo_phase_ = 0.0f;
         }
 
-        if (state().get_value(kWahBypass) >= 0.5f) {
-            for (std::size_t ch = 0; ch < channels; ++ch) {
-                auto in = input.channel(ch); auto out = output.channel(ch);
-                for (std::size_t i = 0; i < frames; ++i) out[i] = in[i];
-            }
-            clear_extra(output, channels);
-            return;
-        }
+        const bool automatic   = state().get_value(kWahMode) >= 0.5f;
+        const int  type_index  = static_cast<int>(std::lround(state().get_value(kWahFilterType)));
+        const auto type         = filter_type(type_index);
+        const float manual_freq = std::clamp(state().get_value(kWahFreq), 20.0f, sample_rate_ * 0.45f);
+        const float q           = std::max(0.1f, state().get_value(kWahQ));
+        const float gain_db     = std::clamp(state().get_value(kWahGain), 0.0f, 40.0f);
+        const float mix         = std::clamp(state().get_value(kWahMix), 0.0f, 1.0f);
+        const float rate        = std::max(0.0f, state().get_value(kWahLfoRate));
+        const float lfo_env_mix = std::clamp(state().get_value(kWahLfoEnvMix), 0.0f, 1.0f);
+        const float attack_s    = std::max(0.0f, state().get_value(kWahEnvAttack));
+        const float release_s   = std::max(0.0f, state().get_value(kWahEnvRelease));
 
-        const bool envelope_mode = state().get_value(kWahMode) >= 0.5f;
-        const float base = state().get_value(kWahFreq);
-        const float q = std::max(0.5f, state().get_value(kWahResonance));
-        const float sens = std::max(0.0f, state().get_value(kWahSensitivity));
-        const float mix = std::clamp(state().get_value(kWahMix) / 100.0f, 0.0f, 1.0f);
+        // The RBJ peaking section bakes the boost into its coefficients; for the
+        // resonant-lowpass and bandpass shapes the Gain knob is a wet makeup gain
+        // so it stays audible in every mode.
+        const float biquad_gain_db = (type == signal::Biquad::Type::peaking) ? gain_db : 0.0f;
+        const float makeup =
+            (type == signal::Biquad::Type::peaking) ? 1.0f : std::pow(10.0f, gain_db / 20.0f);
+
         const float fmax = sample_rate_ * 0.45f;
-        for (std::size_t ch = 0; ch < channels; ++ch) filters_[ch].set_resonance(q);
+        const float attack_co  = one_pole_coeff(attack_s);
+        const float release_co = one_pole_coeff(release_s);
+        const float lfo_inc    = rate / sample_rate_;  // cycles per sample
 
-        if (!envelope_mode) {
-            const float freq = std::clamp(base, 100.0f, fmax);
-            for (std::size_t ch = 0; ch < channels; ++ch) filters_[ch].set_frequency(freq);
+        if (!automatic) {
+            // Manual mode: the centre is fixed, so tune each filter once.
+            const float freq = std::clamp(manual_freq, 20.0f, fmax);
+            for (std::size_t ch = 0; ch < channels; ++ch)
+                filters_[ch].set_coefficients(type, freq, q, sample_rate_, biquad_gain_db);
             for (std::size_t ch = 0; ch < channels; ++ch) {
-                auto in = input.channel(ch); auto out = output.channel(ch);
-                for (std::size_t i = 0; i < frames; ++i)
-                    out[i] = in[i] * (1.0f - mix) + filters_[ch].process(in[i]) * mix;
+                auto in = input.channel(ch);
+                auto out = output.channel(ch);
+                for (std::size_t i = 0; i < frames; ++i) {
+                    const float dry = in[i];
+                    const float wet = filters_[ch].process(dry) * makeup;
+                    out[i] = dry * (1.0f - mix) + wet * mix;
+                }
             }
         } else {
+            // Automatic mode: the LFO is shared across channels; the envelope
+            // follower is per-channel. Blend them, map into [min, max] Hz, and
+            // retune each filter every sample.
             for (std::size_t i = 0; i < frames; ++i) {
-                float linked = 0.0f;
-                for (std::size_t ch = 0; ch < channels; ++ch)
-                    linked = std::max(linked, std::fabs(input.channel(ch)[i]));
-                const float env = detector_.process(linked);    // ~0..1
-                const float freq = std::clamp(base + env * sens, 100.0f, fmax);
-                // The centre is identical across channels; set_frequency recomputes
-                // per channel for clarity (an SVF coeff-copy path would avoid the
-                // duplicate tan() if this were a hot production effect).
+                const float lfo_norm = 0.5f + 0.5f * std::sin(2.0f * kPi * lfo_phase_);
+                lfo_phase_ += lfo_inc;
+                if (lfo_phase_ >= 1.0f) lfo_phase_ -= 1.0f;
+
                 for (std::size_t ch = 0; ch < channels; ++ch) {
-                    filters_[ch].set_frequency(freq);
                     const float dry = input.channel(ch)[i];
-                    output.channel(ch)[i] = dry * (1.0f - mix) + filters_[ch].process(dry) * mix;
+                    const float abs_in = std::fabs(dry);
+                    float env = envelopes_[ch];
+                    const float co = (abs_in > env) ? attack_co : release_co;
+                    env = co * env + (1.0f - co) * abs_in;
+                    envelopes_[ch] = env;
+
+                    const float env_norm = std::clamp(env, 0.0f, 1.0f);
+                    const float blended = lfo_norm + lfo_env_mix * (env_norm - lfo_norm);
+                    const float freq =
+                        std::clamp(kWahMinHz + blended * (kWahMaxHz - kWahMinHz), 20.0f, fmax);
+                    filters_[ch].set_coefficients(type, freq, q, sample_rate_, biquad_gain_db);
+                    const float wet = filters_[ch].process(dry) * makeup;
+                    output.channel(ch)[i] = dry * (1.0f - mix) + wet * mix;
                 }
             }
         }
@@ -135,15 +175,35 @@ public:
     }
 
 private:
+    static constexpr float kPi = 3.14159265358979323846f;
+
+    static signal::Biquad::Type filter_type(int index) {
+        switch (index) {
+            case 1:  return signal::Biquad::Type::bandpass;
+            case 2:  return signal::Biquad::Type::peaking;
+            case 0:
+            default: return signal::Biquad::Type::lowpass;  // Res. LP
+        }
+    }
+
+    // Standard one-pole smoothing coefficient for a time constant in seconds.
+    // value_s == 0 yields an instantaneous follower (coeff 0).
+    float one_pole_coeff(float value_s) const {
+        if (value_s <= 0.0f) return 0.0f;
+        return std::exp(-1.0f / (value_s * sample_rate_));
+    }
+
     static void clear_extra(audio::BufferView<float>& out, std::size_t written) {
         for (std::size_t ch = written; ch < out.num_channels(); ++ch) {
             auto o = out.channel(ch);
             for (std::size_t i = 0; i < out.num_samples(); ++i) o[i] = 0.0f;
         }
     }
+
     float sample_rate_ = 48000.0f;
-    std::array<signal::Svf, 8> filters_{};
-    signal::BallisticsFilter detector_;
+    std::array<signal::Biquad, 8> filters_{};
+    std::array<float, 8> envelopes_{};
+    float lfo_phase_ = 0.0f;
 };
 
 inline std::unique_ptr<format::Processor> create_wah() {

@@ -10,12 +10,17 @@
 namespace pulp::examples::classic {
 
 inline std::unique_ptr<view::View> build_distortion_editor(state::StateStore& store) {
+    // Control order mirrors truce's editor: Type combo, then the In / Out / Tone
+    // gain knobs. The Type option labels match the truce reference exactly.
     return build_effect_editor(store, EffectEditorSpec{
         .title = "DISTORTION",
-        .subtitle = "tanh drive + tone",
-        .knobs = {{kDistDrive, "Drive"}, {kDistTone, "Tone"},
-                  {kDistLevel, "Level"}, {kDistMix, "Mix"}},
-        .bypass_id = kDistBypass,
+        .subtitle = "waveshaper + tone tilt",
+        .controls = {{kDistType, "Type", Control::Kind::Combo,
+                      {"Hard Clip", "Soft Clip", "Exponential", "Full Rect", "Half Rect"}},
+                     {kDistInGain, "In"},
+                     {kDistOutGain, "Out"},
+                     {kDistTone, "Tone"}},
+        .has_bypass = false,
     });
 }
 

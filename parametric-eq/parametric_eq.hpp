@@ -1,11 +1,14 @@
 #pragma once
 
-// Parametric EQ — a three-band equalizer (low shelf, mid bell, high shelf).
+// Parametric EQ — a single-band, selectable-type biquad equalizer.
 //
-// Clean-room textbook EQ: each band is a biquad (RBJ cookbook coefficients),
-// applied in series per channel. The low and high shelves tilt the spectrum at
-// the band edges; the mid is a peaking (bell) filter with adjustable Q. Built
-// on Pulp's own pulp::signal::Biquad; no third-party effect source was read.
+// Clean-room textbook EQ modeled on Reiss & McPherson's *Audio Effects*
+// "Parametric EQ" (and the JUCE reference of the same name): ONE band whose
+// response is chosen from a Type dropdown — low-pass, high-pass, low-shelf,
+// high-shelf, band-pass, band-stop, or peaking. Frequency, Q, and Gain shape
+// the selected filter. Each channel runs its own second-order section using
+// Pulp's pulp::signal::Biquad (RBJ audio-EQ-cookbook coefficients); no
+// third-party effect source was copied.
 
 #include <pulp/format/processor.hpp>
 #include <pulp/view/view.hpp>
@@ -13,20 +16,28 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <memory>
 
 namespace pulp::examples::classic {
 
 enum ParametricEqParams : state::ParamID {
-    kLowFreq   = 1,  // 50..500 Hz
-    kLowGain   = 2,  // -18..18 dB
-    kMidFreq   = 3,  // 200..5000 Hz
-    kMidGain   = 4,  // -18..18 dB
-    kMidQ      = 5,  // 0.2..10
-    kHighFreq  = 6,  // 2000..16000 Hz
-    kHighGain  = 7,  // -18..18 dB
-    kEqBypass  = 8,
+    kEqFreq = 1,  // 10..20000 Hz (log), default 1500
+    kQ    = 2,  // 0.1..20, default sqrt(2)
+    kGain = 3,  // -12..12 dB, default 0 (used by shelf/peaking types)
+    kType = 4,  // 0..6 filter type (see kFilterTypeLabels), default 6 = Peaking
 };
+
+// Filter-type dropdown options, in order. Index 6 (Peaking) is the default —
+// matching the reference, where a parametric EQ defaults to a peaking bell.
+// The seventh entry is "Peaking" (the reference JUCE plug-in labels it
+// "Peaking/Notch"); the first six are the named shelving/pass/stop responses.
+inline constexpr std::array<const char*, 7> kFilterTypeLabels = {
+    "Low-Pass", "High-Pass", "Low-Shelf", "High-Shelf",
+    "Band-Pass", "Band-Stop", "Peaking",
+};
+inline constexpr int kFilterTypeCount = static_cast<int>(kFilterTypeLabels.size());
+inline constexpr int kFilterTypeDefault = 6;  // Peaking
 
 // Defined out-of-line in parametric_eq_editor.hpp (included at the bottom of this file).
 // Forward-declared so create_view() hands the host the same dark Ink &
@@ -47,27 +58,25 @@ public:
     }
 
     void define_parameters(state::StateStore& store) override {
-        store.add_parameter({.id = kLowFreq, .name = "Low Freq", .unit = "Hz",
-                             .range = state::ParamRange::with_centre(50.0f, 500.0f, 150.0f, 200.0f)});
-        store.add_parameter({.id = kLowGain, .name = "Low Gain", .unit = "dB",
-                             .range = {-18.0f, 18.0f, 0.0f, 0.0f}});
-        store.add_parameter({.id = kMidFreq, .name = "Mid Freq", .unit = "Hz",
-                             .range = state::ParamRange::with_centre(200.0f, 5000.0f, 1000.0f, 1000.0f)});
-        store.add_parameter({.id = kMidGain, .name = "Mid Gain", .unit = "dB",
-                             .range = {-18.0f, 18.0f, 0.0f, 0.0f}});
-        store.add_parameter({.id = kMidQ, .name = "Mid Q", .unit = "",
-                             .range = state::ParamRange::with_centre(0.2f, 10.0f, 1.0f, 1.0f)});
-        store.add_parameter({.id = kHighFreq, .name = "High Freq", .unit = "Hz",
-                             .range = state::ParamRange::with_centre(2000.0f, 16000.0f, 5000.0f, 5000.0f)});
-        store.add_parameter({.id = kHighGain, .name = "High Gain", .unit = "dB",
-                             .range = {-18.0f, 18.0f, 0.0f, 0.0f}});
-        store.add_parameter({.id = kEqBypass, .name = "Bypass", .unit = "",
-                             .range = {0.0f, 1.0f, 0.0f, 1.0f}});
+        // Frequency: log-skewed 10 Hz .. 20 kHz, geometric centre, default 1.5 kHz.
+        store.add_parameter({.id = kEqFreq, .name = "Freq", .unit = "Hz",
+                             .range = state::ParamRange::with_centre(
+                                 10.0f, 20000.0f, std::sqrt(10.0f * 20000.0f), 1500.0f)});
+        // Q: linear 0.1 .. 20, default sqrt(2) (Butterworth-ish width).
+        store.add_parameter({.id = kQ, .name = "Q", .unit = "",
+                             .range = {0.1f, 20.0f, 1.41421356f, 0.0f}});
+        // Gain: linear -12 .. +12 dB, default 0 (shelf/peaking only).
+        store.add_parameter({.id = kGain, .name = "Gain", .unit = "dB",
+                             .range = {-12.0f, 12.0f, 0.0f, 0.0f}});
+        // Type: discrete 0..6 selector, default 6 (Peaking).
+        store.add_parameter({.id = kType, .name = "Type", .unit = "",
+                             .range = {0.0f, static_cast<float>(kFilterTypeCount - 1),
+                                       static_cast<float>(kFilterTypeDefault), 1.0f}});
     }
 
     void prepare(const format::PrepareContext& ctx) override {
         sample_rate_ = static_cast<float>(ctx.sample_rate);
-        for (auto& ch : bands_) for (auto& b : ch) b.reset();
+        for (auto& b : filters_) b.reset();
     }
 
     void process(audio::BufferView<float>& output,
@@ -75,57 +84,52 @@ public:
                  midi::MidiBuffer&, midi::MidiBuffer&,
                  const format::ProcessContext& ctx) override {
         const std::size_t channels =
-            std::min({output.num_channels(), input.num_channels(), bands_.size()});
+            std::min({output.num_channels(), input.num_channels(), filters_.size()});
         const std::size_t frames = output.num_samples();
 
         if (ctx.should_reset_dsp_state())
-            for (auto& ch : bands_) for (auto& b : ch) b.reset();
-
-        if (state().get_value(kEqBypass) >= 0.5f) {
-            for (std::size_t ch = 0; ch < channels; ++ch) {
-                auto in = input.channel(ch); auto out = output.channel(ch);
-                for (std::size_t i = 0; i < frames; ++i) out[i] = in[i];
-            }
-            clear_extra(output, channels);
-            return;
-        }
+            for (auto& b : filters_) b.reset();
 
         const float nyq = sample_rate_ * 0.49f;
-        const float low_f  = std::clamp(state().get_value(kLowFreq), 20.0f, nyq);
-        const float mid_f  = std::clamp(state().get_value(kMidFreq), 20.0f, nyq);
-        const float high_f = std::clamp(state().get_value(kHighFreq), 20.0f, nyq);
-        // Read plain values (this example ignores CLAP modulation). Gains are
-        // already range-clamped on write, but clamp defensively in case a future
-        // path writes the store unclamped.
-        const float low_g  = std::clamp(state().get_value(kLowGain), -24.0f, 24.0f);
-        const float mid_g  = std::clamp(state().get_value(kMidGain), -24.0f, 24.0f);
-        const float high_g = std::clamp(state().get_value(kHighGain), -24.0f, 24.0f);
-        const float mid_q  = std::clamp(state().get_value(kMidQ), 0.1f, 20.0f);
-        using T = signal::Biquad::Type;
+        const float freq = std::clamp(state().get_value(kEqFreq), 10.0f, nyq);
+        const float q    = std::clamp(state().get_value(kQ), 0.1f, 20.0f);
+        const float gain = std::clamp(state().get_value(kGain), -24.0f, 24.0f);
+        const int   type = std::clamp(static_cast<int>(std::lround(state().get_value(kType))),
+                                      0, kFilterTypeCount - 1);
+        const auto bt = biquad_type(type);
 
         // Recompute coefficients per block (RT-safe, no allocation). Coefficient
         // assignment preserves each filter's running state, so no zipper reset.
-        for (std::size_t ch = 0; ch < channels; ++ch) {
-            bands_[ch][0].set_coefficients(T::low_shelf, low_f, 0.707f, sample_rate_, low_g);
-            bands_[ch][1].set_coefficients(T::peaking,   mid_f, mid_q,  sample_rate_, mid_g);
-            bands_[ch][2].set_coefficients(T::high_shelf, high_f, 0.707f, sample_rate_, high_g);
-        }
+        for (std::size_t ch = 0; ch < channels; ++ch)
+            filters_[ch].set_coefficients(bt, freq, q, sample_rate_, gain);
+
         for (std::size_t ch = 0; ch < channels; ++ch) {
             auto in = input.channel(ch);
             auto out = output.channel(ch);
-            auto& band = bands_[ch];
-            for (std::size_t i = 0; i < frames; ++i) {
-                float x = in[i];
-                x = band[0].process(x);
-                x = band[1].process(x);
-                x = band[2].process(x);
-                out[i] = x;
-            }
+            auto& f = filters_[ch];
+            for (std::size_t i = 0; i < frames; ++i) out[i] = f.process(in[i]);
         }
         clear_extra(output, channels);
     }
 
 private:
+    // Map the Type dropdown index to a Biquad response. Indices follow
+    // kFilterTypeLabels. Band-Stop maps to the RBJ notch; Peaking to the RBJ
+    // peaking (bell). Only the shelf and peaking types use the Gain parameter.
+    static signal::Biquad::Type biquad_type(int index) {
+        using T = signal::Biquad::Type;
+        switch (index) {
+            case 0: return T::lowpass;
+            case 1: return T::highpass;
+            case 2: return T::low_shelf;
+            case 3: return T::high_shelf;
+            case 4: return T::bandpass;
+            case 5: return T::notch;       // Band-Stop
+            case 6:
+            default: return T::peaking;
+        }
+    }
+
     static void clear_extra(audio::BufferView<float>& out, std::size_t written) {
         for (std::size_t ch = written; ch < out.num_channels(); ++ch) {
             auto o = out.channel(ch);
@@ -133,7 +137,7 @@ private:
         }
     }
     float sample_rate_ = 48000.0f;
-    std::array<std::array<signal::Biquad, 3>, 8> bands_{};
+    std::array<signal::Biquad, 8> filters_{};
 };
 
 inline std::unique_ptr<format::Processor> create_parametric_eq() {

@@ -13,23 +13,26 @@ out the SDK contract surface.
 
 ## Status
 
+Effects are listed alphabetically. Each parameter set, name, and editor layout
+mirrors the corresponding Reiss & McPherson / Juan Gil reference effect.
+
 | Effect | Editor | Notes |
 |---|---|---|
-| Tremolo | <img src="screenshots/tremolo.png" width="220"> | Periodic amplitude modulation (sine/triangle/square LFO) |
-| Ring Mod | <img src="screenshots/ring-mod.png" width="220"> | Sine-carrier ring modulation with wet/dry mix |
-| Delay | <img src="screenshots/delay.png" width="220"> | Feedback delay line with wet/dry mix |
-| Vibrato | <img src="screenshots/vibrato.png" width="220"> | LFO-swept fractional delay (pitch modulation) |
-| Chorus | <img src="screenshots/chorus.png" width="220"> | LFO-swept short delay blended with the dry signal |
-| Comp/Expander | <img src="screenshots/compressor-expander.png" width="220"> | Stereo-linked dynamics — compress above / expand below, with makeup |
-| Parametric EQ | <img src="screenshots/parametric-eq.png" width="220"> | Three-band EQ (low shelf / mid bell / high shelf), per-band freq/gain/Q |
-| Wah | <img src="screenshots/wah.png" width="220"> | Resonant bandpass swept manually or by the input envelope (auto-wah) |
-| Pitch Shift | <img src="screenshots/pitch-shift.png" width="220"> | ±12-semitone two-tap crossfading delay-line pitch shifter |
-| Flanger | <img src="screenshots/flanger.png" width="220"> | Short LFO-swept delay with feedback — the resonant "jet" comb |
-| Ping-Pong Delay | <img src="screenshots/ping-pong.png" width="220"> | Stereo cross-coupled delay; echoes bounce left↔right as they decay |
-| Phaser | <img src="screenshots/phaser.png" width="220"> | Six cascaded swept all-pass stages + feedback → moving notches |
-| Distortion | <img src="screenshots/distortion.png" width="220"> | tanh soft-clip drive with a one-pole tone tilt, level, and mix |
-| Auto-Pan | <img src="screenshots/panning.png" width="220"> | Equal-power LFO stereo panner (sine/triangle/square) |
-| Robotization | <img src="screenshots/robotization.png" width="220"> | STFT zero-phase resynthesis → fixed monotone "robot" pitch |
+| Chorus | <img src="screenshots/chorus.png" width="220"> | Multi-voice (2–5) LFO-swept delay ensemble — delay/width/depth, waveform + interpolation, stereo spread |
+| Compressor | <img src="screenshots/compressor-expander.png" width="220"> | Stereo-linked dynamics — Compressor/Expander mode, threshold/ratio/attack/release/makeup |
+| Delay | <img src="screenshots/delay.png" width="220"> | Feedback delay line — time, feedback, wet/dry mix |
+| Distortion | <img src="screenshots/distortion.png" width="220"> | Five waveshapers (hard/soft clip, exponential, full/half rectify) with input/output gain + tone tilt |
+| Flanger | <img src="screenshots/flanger.png" width="220"> | Short LFO-swept delay with feedback + inverted comb — waveform/interpolation, stereo |
+| Panning | <img src="screenshots/panning.png" width="220"> | Static stereo panner — equal-power+precedence or ITD+ILD binaural law, pan position |
+| Parametric EQ | <img src="screenshots/parametric-eq.png" width="220"> | Single-band biquad with selectable type (LP/HP/shelves/band-pass/-stop/peaking), freq/Q/gain |
+| Phaser | <img src="screenshots/phaser.png" width="220"> | 2–10 cascaded all-pass stages swept by an LFO — depth/feedback, min freq + sweep width, stereo |
+| Ping-Pong Delay | <img src="screenshots/ping-pong.png" width="220"> | Stereo cross-coupled delay with L/R balance — echoes bounce side to side as they decay |
+| Pitch Shift | <img src="screenshots/pitch-shift.png" width="220"> | Phase-vocoder pitch shift (±12 st) with selectable FFT size / hop / window |
+| Ring Mod | <img src="screenshots/ring-mod.png" width="220"> | Carrier ring modulation — depth, carrier frequency, selectable carrier waveform |
+| Robotization | <img src="screenshots/robotization.png" width="220"> | STFT phase manipulation — pass-through / robotization / whisperization, FFT size/hop/window |
+| Tremolo | <img src="screenshots/tremolo.png" width="220"> | Periodic amplitude modulation — depth, rate, six LFO waveforms |
+| Vibrato | <img src="screenshots/vibrato.png" width="220"> | LFO-swept fractional delay (pitch modulation) — width, rate, waveform, interpolation |
+| Wah-Wah | <img src="screenshots/wah.png" width="220"> | Resonant SVF (res. low-pass / band-pass / peaking) swept manually or by LFO + envelope, with Q/gain |
 
 Each effect also ships a dark **Ink & Signal** editor (see `*/*_editor.hpp` and
 `test_editors.cpp`). Companion non-effect examples (a MIDI utility, a minimal

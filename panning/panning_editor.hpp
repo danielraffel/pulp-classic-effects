@@ -1,6 +1,7 @@
 #pragma once
 
-// Dark Ink & Signal editor for the Auto-Pan — see ../ink_signal_editor.hpp.
+// Dark Ink & Signal editor for the static Panning effect — see
+// ../ink_signal_editor.hpp.
 
 #include "panning.hpp"
 #include "../ink_signal_editor.hpp"
@@ -11,12 +12,11 @@ namespace pulp::examples::classic {
 
 inline std::unique_ptr<view::View> build_panning_editor(state::StateStore& store) {
     return build_effect_editor(store, EffectEditorSpec{
-        .title = "AUTO-PAN",
-        .subtitle = "equal-power stereo sweep",
-        .controls = {{kPanRate, "Rate"},
-                     {kPanDepth, "Depth"},
-                     {kPanWaveform, "Wave", Control::Kind::Combo, {"Sine", "Triangle", "Square"}}},
-        .bypass_id = kPanBypass,
+        .title = "PANNING",
+        .subtitle = "static stereo panner",
+        .controls = {{kMethod, "Method", Control::Kind::Combo, {"Pan+Pre", "ITD+ILD"}},
+                     {kPan, "Pan"}},
+        .has_bypass = false,
     });
 }
 

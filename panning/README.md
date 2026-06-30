@@ -1,16 +1,19 @@
-# Auto-Pan
+# Panning
 
-An LFO sweeps the stereo position between hard-left and hard-right using the
-equal-power law (gL = cos θ, gR = sin θ), normalized so the centre is unity —
-the perceived loudness stays constant as the image moves.
+A **static stereo panner** with a selectable panning law. The position is fixed
+by the `Pan` control; `Method` chooses how that position is realized.
 
 | Param | Range | Notes |
 |-------|-------|-------|
-| Rate | 0.05–8 Hz | sweep speed |
-| Depth | 0–100 % | how far the image travels (0 % pins it to centre) |
-| Wave | sine / triangle / square | LFO shape (square = hard auto-pan) |
-| Bypass | on/off | clean passthrough |
+| Method | Pan+Pre / ITD+ILD | panning law (default ITD+ILD) |
+| Pan | 0–1 | 0 = hard left, 0.5 = centre, 1 = hard right |
 
-Requires a stereo bus; a mono bus passes through unchanged. Clean-room
-implementation on Pulp's own `pulp::signal::Oscillator`; no third-party effect
-source was read. References in the repo [README](../README.md#credits).
+- **Pan+Pre** — constant-power amplitude pan (gL = cos θ, gR = sin θ) plus a
+  short precedence/Haas delay on the attenuated side so the louder side leads.
+- **ITD+ILD** — a spherical-head binaural model: an interaural *time* difference
+  (per-ear fractional delay, near ear leads) and an interaural *level* difference
+  (per-ear Brown–Duda head-shadow shelf, near ear bright / far ear dull).
+
+Clean-room implementation derived from the textbook panning laws (Reiss &
+McPherson); no third-party effect source was copied. References in the repo
+[README](../README.md#credits).

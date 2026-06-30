@@ -13,10 +13,13 @@ inline std::unique_ptr<view::View> build_tremolo_editor(state::StateStore& store
     return build_effect_editor(store, EffectEditorSpec{
         .title = "TREMOLO",
         .subtitle = "amplitude modulation",
-        .controls = {{kRate, "Rate"},
-                     {kDepth, "Depth"},
-                     {kWaveform, "Wave", Control::Kind::Combo, {"Sine", "Triangle", "Square"}}},
-        .bypass_id = kBypass,
+        // Order: Depth, Rate, Waveform. The Combo labels are the full waveform
+        // set and must stay in the same order as TremoloWaveform.
+        .controls = {{kTremDepth, "Depth"},
+                     {kRate, "Rate"},
+                     {kTremWaveform, "Wave", Control::Kind::Combo,
+                      {"Sine", "Triangle", "Sawtooth", "Inv. Saw", "Square", "Sq. Sloped"}}},
+        .has_bypass = false,
     });
 }
 

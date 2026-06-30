@@ -9,7 +9,7 @@ endif()
 
 pulp_add_plugin(Wah
     FORMATS           VST3 CLAP Standalone
-    PLUGIN_NAME       "Wah"
+    PLUGIN_NAME       "Wah-Wah"
     BUNDLE_ID         "com.pulp.examples.wah"
     MANUFACTURER      "Pulp Examples"
     VERSION           "0.1.0"

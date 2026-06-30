@@ -1,4 +1,4 @@
-# Pitch Shift — two-tap crossfading delay-line pitch shifter. See README.md.
+# Pitch Shift — phase-vocoder pitch shifter. See README.md.
 
 if(PULP_BUILD_TESTS)
     add_executable(pitch-shift-test test_pitch_shift.cpp)

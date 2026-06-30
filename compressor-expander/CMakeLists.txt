@@ -9,7 +9,7 @@ endif()
 
 pulp_add_plugin(CompressorExpander
     FORMATS           VST3 CLAP Standalone
-    PLUGIN_NAME       "Comp/Expander"
+    PLUGIN_NAME       "Compressor"
     BUNDLE_ID         "com.pulp.examples.compressor-expander"
     MANUFACTURER      "Pulp Examples"
     VERSION           "0.1.0"

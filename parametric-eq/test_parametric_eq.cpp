@@ -58,11 +58,30 @@ double gain_at(format::HeadlessHost& h, float hz, float amp = 0.2f) {
     REQUIRE(v::check_finite(out));
     return rms_tail(out) / rms_tail(in);
 }
+// Configure the single band.
+void set_band(format::HeadlessHost& h, int type, float freq, float q, float gain_db) {
+    h.state().set_value(kType, static_cast<float>(type));
+    h.state().set_value(kEqFreq, freq);
+    h.state().set_value(kQ, q);
+    h.state().set_value(kGain, gain_db);
 }
+}  // namespace
 
-TEST_CASE("Parametric EQ is flat (~unity) with all gains at 0 dB", "[eq]") {
+TEST_CASE("Parametric EQ exposes exactly four params: Freq, Q, Gain, Type", "[eq]") {
     format::HeadlessHost h(create_parametric_eq);
     h.prepare(48000.0, kN);
+    // Default Type is Peaking (index 6), the seventh option.
+    REQUIRE(kFilterTypeCount == 7);
+    REQUIRE(kFilterTypeDefault == 6);
+    REQUIRE(std::string(kFilterTypeLabels[0]) == "Low-Pass");
+    REQUIRE(std::string(kFilterTypeLabels[6]) == "Peaking");
+    REQUIRE(h.state().get_value(kType) == 6.0f);  // defaults to Peaking
+}
+
+TEST_CASE("Parametric EQ default (Peaking, 0 dB) is flat / unity", "[eq]") {
+    format::HeadlessHost h(create_parametric_eq);
+    h.prepare(48000.0, kN);
+    // Defaults: Peaking, gain 0 dB -> identity at every frequency.
     for (float f : {80.0f, 1000.0f, 8000.0f}) {
         const double g = gain_at(h, f);
         REQUIRE(g > 0.97);
@@ -70,54 +89,124 @@ TEST_CASE("Parametric EQ is flat (~unity) with all gains at 0 dB", "[eq]") {
     }
 }
 
-TEST_CASE("Parametric EQ low shelf boosts lows, leaves highs alone", "[eq]") {
+TEST_CASE("Parametric EQ Low-Pass attenuates highs, passes lows", "[eq]") {
     format::HeadlessHost h(create_parametric_eq);
     h.prepare(48000.0, kN);
-    h.state().set_value(kLowFreq, 200.0f);
-    h.state().set_value(kLowGain, 12.0f);
-    REQUIRE(gain_at(h, 60.0f) > 1.5);            // low band boosted
-    const double high = gain_at(h, 8000.0f);
-    REQUIRE(high > 0.9); REQUIRE(high < 1.1);    // highs untouched
-}
-
-TEST_CASE("Parametric EQ mid bell cut attenuates its band only", "[eq]") {
-    format::HeadlessHost h(create_parametric_eq);
-    h.prepare(48000.0, kN);
-    h.state().set_value(kMidFreq, 1000.0f);
-    h.state().set_value(kMidQ, 2.0f);
-    h.state().set_value(kMidGain, -12.0f);
-    REQUIRE(gain_at(h, 1000.0f) < 0.6);          // mid band cut
+    set_band(h, 0, 1000.0f, 0.707f, 0.0f);   // Low-Pass @ 1 kHz
     const double low = gain_at(h, 100.0f);
-    REQUIRE(low > 0.9); REQUIRE(low < 1.1);      // lows untouched
+    REQUIRE(low > 0.9); REQUIRE(low < 1.1);   // well below cutoff: passes
+    REQUIRE(gain_at(h, 10000.0f) < 0.2);      // well above cutoff: rolled off
 }
 
-TEST_CASE("Parametric EQ high shelf boosts highs, leaves lows alone", "[eq]") {
+TEST_CASE("Parametric EQ High-Pass attenuates lows, passes highs", "[eq]") {
     format::HeadlessHost h(create_parametric_eq);
     h.prepare(48000.0, kN);
-    h.state().set_value(kHighFreq, 5000.0f);
-    h.state().set_value(kHighGain, 12.0f);
-    REQUIRE(gain_at(h, 10000.0f) > 1.5);         // high band boosted
-    const double low = gain_at(h, 200.0f);
-    REQUIRE(low > 0.9); REQUIRE(low < 1.1);      // lows untouched
+    set_band(h, 1, 1000.0f, 0.707f, 0.0f);   // High-Pass @ 1 kHz
+    REQUIRE(gain_at(h, 100.0f) < 0.2);        // well below cutoff: rolled off
+    const double high = gain_at(h, 10000.0f);
+    REQUIRE(high > 0.9); REQUIRE(high < 1.1);  // well above cutoff: passes
+}
+
+TEST_CASE("Parametric EQ Low-Shelf boosts lows, leaves highs alone", "[eq]") {
+    format::HeadlessHost h(create_parametric_eq);
+    h.prepare(48000.0, kN);
+    set_band(h, 2, 500.0f, 0.707f, 12.0f);   // Low-Shelf +12 dB
+    REQUIRE(gain_at(h, 60.0f) > 2.5);          // shelf plateau ~ +12 dB (~4x)
+    const double high = gain_at(h, 10000.0f);
+    REQUIRE(high > 0.9); REQUIRE(high < 1.1);  // far above corner: untouched
+}
+
+TEST_CASE("Parametric EQ High-Shelf boosts highs, leaves lows alone", "[eq]") {
+    format::HeadlessHost h(create_parametric_eq);
+    h.prepare(48000.0, kN);
+    set_band(h, 3, 2000.0f, 0.707f, 12.0f);  // High-Shelf +12 dB
+    REQUIRE(gain_at(h, 12000.0f) > 2.5);       // shelf plateau ~ +12 dB
+    const double low = gain_at(h, 100.0f);
+    REQUIRE(low > 0.9); REQUIRE(low < 1.1);    // far below corner: untouched
+}
+
+TEST_CASE("Parametric EQ Band-Pass peaks at centre, rejects far bands", "[eq]") {
+    format::HeadlessHost h(create_parametric_eq);
+    h.prepare(48000.0, kN);
+    set_band(h, 4, 1000.0f, 2.0f, 0.0f);     // Band-Pass @ 1 kHz, Q=2
+    const double centre = gain_at(h, 1000.0f);
+    REQUIRE(centre > 0.9); REQUIRE(centre < 1.1);  // 0 dB peak gain at centre
+    REQUIRE(gain_at(h, 100.0f) < 0.3);             // below band: rejected
+    REQUIRE(gain_at(h, 8000.0f) < 0.3);            // above band: rejected
+}
+
+TEST_CASE("Parametric EQ Band-Stop notches centre, passes the rest", "[eq]") {
+    format::HeadlessHost h(create_parametric_eq);
+    h.prepare(48000.0, kN);
+    set_band(h, 5, 1000.0f, 2.0f, 0.0f);     // Band-Stop (notch) @ 1 kHz
+    REQUIRE(gain_at(h, 1000.0f) < 0.15);      // deep null at centre
+    const double low = gain_at(h, 100.0f);
+    const double high = gain_at(h, 8000.0f);
+    REQUIRE(low > 0.9); REQUIRE(low < 1.1);    // far below: passes
+    REQUIRE(high > 0.9); REQUIRE(high < 1.1);  // far above: passes
+}
+
+TEST_CASE("Parametric EQ Peaking boosts at Freq by Gain", "[eq]") {
+    format::HeadlessHost h(create_parametric_eq);
+    h.prepare(48000.0, kN);
+    set_band(h, 6, 1000.0f, 2.0f, 12.0f);    // Peaking +12 dB @ 1 kHz
+    // RBJ peaking peak gain at centre = 10^(gain/20) = ~3.98 for +12 dB.
+    const double centre = gain_at(h, 1000.0f);
+    REQUIRE(centre > 3.4); REQUIRE(centre < 4.5);
+    const double low = gain_at(h, 100.0f);
+    const double high = gain_at(h, 10000.0f);
+    REQUIRE(low > 0.9); REQUIRE(low < 1.1);    // off-band untouched
+    REQUIRE(high > 0.9); REQUIRE(high < 1.1);
+}
+
+TEST_CASE("Parametric EQ Peaking cut attenuates only its band", "[eq]") {
+    format::HeadlessHost h(create_parametric_eq);
+    h.prepare(48000.0, kN);
+    set_band(h, 6, 1000.0f, 2.0f, -12.0f);   // Peaking -12 dB @ 1 kHz
+    const double centre = gain_at(h, 1000.0f);
+    REQUIRE(centre < 0.45);                     // ~ -12 dB cut (~0.25x)
+    const double low = gain_at(h, 100.0f);
+    REQUIRE(low > 0.9); REQUIRE(low < 1.1);
+}
+
+TEST_CASE("Parametric EQ Q controls peaking bandwidth", "[eq]") {
+    auto offcenter_gain = [](float q) {
+        format::HeadlessHost h(create_parametric_eq);
+        h.prepare(48000.0, kN);
+        set_band(h, 6, 1000.0f, q, -12.0f);   // Peaking cut, vary Q
+        return gain_at(h, 1600.0f);            // ~2/3 octave above centre
+    };
+    const double wide = offcenter_gain(0.5f);   // broad cut reaches 1600 Hz
+    const double narrow = offcenter_gain(8.0f);  // narrow cut barely touches it
+    REQUIRE(wide < narrow);                       // lower Q = wider cut off-centre
+    REQUIRE(narrow > 0.9);                         // narrow cut leaves 1600 Hz ~alone
+}
+
+TEST_CASE("Parametric EQ Type switch changes the response in place", "[eq]") {
+    // The same band, retuned only via the Type selector, must produce a
+    // materially different response — proving the dropdown drives coefficients.
+    format::HeadlessHost h(create_parametric_eq);
+    h.prepare(48000.0, kN);
+    set_band(h, 0, 1000.0f, 0.707f, 0.0f);   // Low-Pass: 8 kHz rejected
+    const double lp_high = gain_at(h, 8000.0f);
+    h.state().set_value(kType, 1.0f);         // -> High-Pass: 8 kHz passes
+    const double hp_high = gain_at(h, 8000.0f);
+    REQUIRE(lp_high < 0.2);
+    REQUIRE(hp_high > 0.9);
 }
 
 TEST_CASE("Parametric EQ stays stable at extreme settings", "[eq]") {
-    // Prepare at 8 kHz so the mid band's 5 kHz max sits ABOVE Nyquist (4 kHz),
-    // forcing the process()-level 0.49*sr freq clamp to engage — the real
-    // blowup guard. Excite with a broadband impulse so the narrow +18 dB/Q=10
-    // resonance actually rings, then assert it stays finite and bounded.
+    // Prepare at 8 kHz so a 5 kHz peak sits ABOVE Nyquist (4 kHz), forcing the
+    // process()-level 0.49*sr freq clamp to engage. Excite with a broadband
+    // impulse so a narrow +18 dB / Q=20 resonance rings, then assert it stays
+    // finite, bounded, and decays.
     format::HeadlessHost h(create_parametric_eq);
     h.prepare(8000.0, kN);
-    h.state().set_value(kMidFreq, 5000.0f);      // > Nyquist@8k -> clamped in process
-    h.state().set_value(kMidQ, 10.0f);
-    h.state().set_value(kMidGain, 18.0f);
-    h.state().set_value(kLowGain, 18.0f);
-    h.state().set_value(kHighGain, 18.0f);
+    set_band(h, 6, 5000.0f, 20.0f, 18.0f);   // Peaking, freq > Nyquist@8k
     std::vector<float> impulse(kN, 0.0f); impulse[0] = 1.0f;
     auto out = render(h, impulse);
     REQUIRE(v::check_finite(out));
-    REQUIRE(v::check_peak_below(out, 12.0f));     // rings but stays bounded
-    // The ring must decay — a stable filter settles back toward silence.
+    REQUIRE(v::check_peak_below(out, 12.0f));
     float tail = 0.0f;
     for (int n = kN - 500; n < kN; ++n) tail = std::max(tail, std::fabs(out[n]));
     REQUIRE(tail < 0.05f);
@@ -126,54 +215,16 @@ TEST_CASE("Parametric EQ stays stable at extreme settings", "[eq]") {
 TEST_CASE("Parametric EQ processes channels independently (per-channel state)", "[eq]") {
     format::HeadlessHost h(create_parametric_eq);
     h.prepare(48000.0, kN);
-    h.state().set_value(kLowFreq, 200.0f);
-    h.state().set_value(kLowGain, 12.0f);        // boosts lows only
-    // Left = low tone (in the boosted shelf), Right = high tone (outside it).
-    auto left = sine(0.2f, 60.0f, kN);
-    auto right = sine(0.2f, 8000.0f, kN);
+    set_band(h, 0, 1000.0f, 0.707f, 0.0f);   // Low-Pass @ 1 kHz
+    // Left = low tone (passes), Right = high tone (rejected).
+    auto left = sine(0.2f, 100.0f, kN);
+    auto right = sine(0.2f, 10000.0f, kN);
     auto [out_l, out_r] = render_stereo(h, left, right);
     REQUIRE(v::check_finite(out_l));
     REQUIRE(v::check_finite(out_r));
     const double gain_l = rms_tail(out_l) / rms_tail(left);
     const double gain_r = rms_tail(out_r) / rms_tail(right);
-    REQUIRE(gain_l > 1.5);                         // left's low tone boosted
-    REQUIRE(gain_r > 0.9); REQUIRE(gain_r < 1.1);  // right's high tone untouched
+    REQUIRE(gain_l > 0.9); REQUIRE(gain_l < 1.1);  // left's low tone passes
+    REQUIRE(gain_r < 0.2);                          // right's high tone rejected
     // A channel-0-only or cross-contaminating impl could not produce both.
-}
-
-TEST_CASE("Parametric EQ mid Q controls cut bandwidth", "[eq]") {
-    auto offcenter_gain = [](float q) {
-        format::HeadlessHost h(create_parametric_eq);
-        h.prepare(48000.0, kN);
-        h.state().set_value(kMidFreq, 1000.0f);
-        h.state().set_value(kMidGain, -12.0f);
-        h.state().set_value(kMidQ, q);
-        return gain_at(h, 1600.0f);   // ~2/3 octave above centre
-    };
-    const double wide = offcenter_gain(0.5f);   // broad cut reaches 1600 Hz
-    const double narrow = offcenter_gain(8.0f);  // narrow cut barely touches it
-    REQUIRE(wide < narrow);                       // wider Q attenuates more off-centre
-    REQUIRE(narrow > 0.9);                         // narrow cut leaves 1600 Hz ~alone
-}
-
-TEST_CASE("Parametric EQ applies all three bands at once", "[eq]") {
-    format::HeadlessHost h(create_parametric_eq);
-    h.prepare(48000.0, kN);
-    h.state().set_value(kLowFreq, 200.0f);  h.state().set_value(kLowGain, 12.0f);
-    h.state().set_value(kMidFreq, 1000.0f); h.state().set_value(kMidQ, 2.0f);
-    h.state().set_value(kMidGain, -12.0f);
-    h.state().set_value(kHighFreq, 5000.0f); h.state().set_value(kHighGain, 12.0f);
-    REQUIRE(gain_at(h, 60.0f) > 1.5);     // low boosted
-    REQUIRE(gain_at(h, 1000.0f) < 0.6);   // mid cut
-    REQUIRE(gain_at(h, 10000.0f) > 1.5);  // high boosted
-}
-
-TEST_CASE("Parametric EQ bypass passes through unchanged", "[eq]") {
-    format::HeadlessHost h(create_parametric_eq);
-    h.prepare(48000.0, 512);
-    h.state().set_value(kLowGain, 12.0f);        // would change sound if not bypassed
-    h.state().set_value(kEqBypass, 1.0f);
-    auto in = sine(0.5f, 120.0f, 512);
-    auto out = render(h, in);
-    for (int n = 0; n < 512; ++n) REQUIRE(std::fabs(out[n] - in[n]) < 1e-6f);
 }
