@@ -13,8 +13,9 @@ inline std::unique_ptr<view::View> build_wah_editor(state::StateStore& store) {
     return build_effect_editor(store, EffectEditorSpec{
         .title = "WAH",
         .subtitle = "swept resonant filter",
-        .knobs = {{kWahMode, "Mode"}, {kWahFreq, "Freq"}, {kWahResonance, "Reso"},
-                  {kWahSensitivity, "Sens"}, {kWahMix, "Mix"}},
+        .controls = {{kWahMode, "Mode", Control::Kind::Combo, {"Manual", "Envelope"}},
+                     {kWahFreq, "Freq"}, {kWahResonance, "Reso"},
+                     {kWahSensitivity, "Sens"}, {kWahMix, "Mix"}},
         .bypass_id = kWahBypass,
     });
 }

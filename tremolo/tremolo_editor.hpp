@@ -13,7 +13,9 @@ inline std::unique_ptr<view::View> build_tremolo_editor(state::StateStore& store
     return build_effect_editor(store, EffectEditorSpec{
         .title = "TREMOLO",
         .subtitle = "amplitude modulation",
-        .knobs = {{kRate, "Rate"}, {kDepth, "Depth"}, {kWaveform, "Wave"}},
+        .controls = {{kRate, "Rate"},
+                     {kDepth, "Depth"},
+                     {kWaveform, "Wave", Control::Kind::Combo, {"Sine", "Triangle", "Square"}}},
         .bypass_id = kBypass,
     });
 }

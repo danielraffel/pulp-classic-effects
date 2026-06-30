@@ -13,7 +13,9 @@ inline std::unique_ptr<view::View> build_panning_editor(state::StateStore& store
     return build_effect_editor(store, EffectEditorSpec{
         .title = "AUTO-PAN",
         .subtitle = "equal-power stereo sweep",
-        .knobs = {{kPanRate, "Rate"}, {kPanDepth, "Depth"}, {kPanWaveform, "Wave"}},
+        .controls = {{kPanRate, "Rate"},
+                     {kPanDepth, "Depth"},
+                     {kPanWaveform, "Wave", Control::Kind::Combo, {"Sine", "Triangle", "Square"}}},
         .bypass_id = kPanBypass,
     });
 }

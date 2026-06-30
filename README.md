@@ -13,24 +13,23 @@ out the SDK contract surface.
 
 ## Status
 
-| Effect | Editor | DSP | Test | Notes |
-|---|---|---|---|---|
-| Tremolo | <img src="screenshots/tremolo.png" width="220"> | ✅ | ✅ | Periodic amplitude modulation (sine/triangle/square LFO) |
-| Ring Mod | <img src="screenshots/ring-mod.png" width="220"> | ✅ | ✅ | Sine-carrier ring modulation with wet/dry mix |
-| Delay | <img src="screenshots/delay.png" width="220"> | ✅ | ✅ | Feedback delay line with wet/dry mix |
-| Vibrato | <img src="screenshots/vibrato.png" width="220"> | ✅ | ✅ | LFO-swept fractional delay (pitch modulation) |
-| Chorus | <img src="screenshots/chorus.png" width="220"> | ✅ | ✅ | LFO-swept short delay blended with the dry signal |
-| Comp/Expander | <img src="screenshots/compressor-expander.png" width="220"> | ✅ | ✅ | Stereo-linked dynamics — compress above / expand below, with makeup |
-| Parametric EQ | <img src="screenshots/parametric-eq.png" width="220"> | ✅ | ✅ | Three-band EQ (low shelf / mid bell / high shelf), per-band freq/gain/Q |
-| Wah | <img src="screenshots/wah.png" width="220"> | ✅ | ✅ | Resonant bandpass swept manually or by the input envelope (auto-wah) |
-| Pitch Shift | <img src="screenshots/pitch-shift.png" width="220"> | ✅ | ✅ | ±12-semitone two-tap crossfading delay-line pitch shifter |
-| Flanger | <img src="screenshots/flanger.png" width="220"> | ✅ | ✅ | Short LFO-swept delay with feedback — the resonant "jet" comb |
-| Ping-Pong Delay | <img src="screenshots/ping-pong.png" width="220"> | ✅ | ✅ | Stereo cross-coupled delay; echoes bounce left↔right as they decay |
-| Phaser | <img src="screenshots/phaser.png" width="220"> | ✅ | ✅ | Six cascaded swept all-pass stages + feedback → moving notches |
-| Distortion | <img src="screenshots/distortion.png" width="220"> | ✅ | ✅ | tanh soft-clip drive with a one-pole tone tilt, level, and mix |
-| Auto-Pan | <img src="screenshots/panning.png" width="220"> | ✅ | ✅ | Equal-power LFO stereo panner (sine/triangle/square) |
-| Robotization | <img src="screenshots/robotization.png" width="220"> | ✅ | ✅ | STFT zero-phase resynthesis → fixed monotone "robot" pitch |
-| _more effects_ | | planned | planned | flanger, ping-pong, phaser, distortion, panning, robotization, … |
+| Effect | Editor | Notes |
+|---|---|---|
+| Tremolo | <img src="screenshots/tremolo.png" width="220"> | Periodic amplitude modulation (sine/triangle/square LFO) |
+| Ring Mod | <img src="screenshots/ring-mod.png" width="220"> | Sine-carrier ring modulation with wet/dry mix |
+| Delay | <img src="screenshots/delay.png" width="220"> | Feedback delay line with wet/dry mix |
+| Vibrato | <img src="screenshots/vibrato.png" width="220"> | LFO-swept fractional delay (pitch modulation) |
+| Chorus | <img src="screenshots/chorus.png" width="220"> | LFO-swept short delay blended with the dry signal |
+| Comp/Expander | <img src="screenshots/compressor-expander.png" width="220"> | Stereo-linked dynamics — compress above / expand below, with makeup |
+| Parametric EQ | <img src="screenshots/parametric-eq.png" width="220"> | Three-band EQ (low shelf / mid bell / high shelf), per-band freq/gain/Q |
+| Wah | <img src="screenshots/wah.png" width="220"> | Resonant bandpass swept manually or by the input envelope (auto-wah) |
+| Pitch Shift | <img src="screenshots/pitch-shift.png" width="220"> | ±12-semitone two-tap crossfading delay-line pitch shifter |
+| Flanger | <img src="screenshots/flanger.png" width="220"> | Short LFO-swept delay with feedback — the resonant "jet" comb |
+| Ping-Pong Delay | <img src="screenshots/ping-pong.png" width="220"> | Stereo cross-coupled delay; echoes bounce left↔right as they decay |
+| Phaser | <img src="screenshots/phaser.png" width="220"> | Six cascaded swept all-pass stages + feedback → moving notches |
+| Distortion | <img src="screenshots/distortion.png" width="220"> | tanh soft-clip drive with a one-pole tone tilt, level, and mix |
+| Auto-Pan | <img src="screenshots/panning.png" width="220"> | Equal-power LFO stereo panner (sine/triangle/square) |
+| Robotization | <img src="screenshots/robotization.png" width="220"> | STFT zero-phase resynthesis → fixed monotone "robot" pitch |
 
 Each effect also ships a dark **Ink & Signal** editor (see `*/*_editor.hpp` and
 `test_editors.cpp`). Companion non-effect examples (a MIDI utility, a minimal
@@ -39,9 +38,16 @@ instrument, a UI fixture) live in
 
 ## Credits
 
-Inspired by truce-audio's [reiss-mcpherson-effects](https://github.com/truce-audio/reiss-mcpherson-effects)
-and [truce](https://github.com/truce-audio/truce), and the *Audio Effects* book
-by Reiss & McPherson.
+These effects trace back to the worked examples in Joshua D. Reiss & Andrew
+McPherson's *Audio Effects: Theory, Implementation and Application*, which Juan
+Gil ported to JUCE ([juandagilc/Audio-Effects](https://github.com/juandagilc/Audio-Effects)).
+truce-audio reimplemented them on the [truce](https://github.com/truce-audio/truce)
+framework as [reiss-mcpherson-effects](https://github.com/truce-audio/reiss-mcpherson-effects).
+
+This suite is an independent, clean-room reimplementation on the Pulp SDK —
+derived from the book's algorithms, not copied from any of those codebases — so
+the same recognizable effects show off "write one `Processor`, get every plugin
+format."
 
 ## License
 
