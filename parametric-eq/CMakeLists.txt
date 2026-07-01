@@ -8,11 +8,11 @@ if(PULP_BUILD_TESTS)
 endif()
 
 pulp_add_plugin(ParametricEq
-    FORMATS           VST3 CLAP Standalone
+    FORMATS           VST3 AU CLAP
     PLUGIN_NAME       "Parametric EQ"
     BUNDLE_ID         "com.pulp.examples.parametric-eq"
     MANUFACTURER      "Pulp Examples"
-    VERSION           "0.1.0"
+    VERSION           "0.2.0"
     CATEGORY          Effect
     PLUGIN_CODE       "PPeq"
     MANUFACTURER_CODE "PlpX"

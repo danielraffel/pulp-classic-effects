@@ -8,11 +8,11 @@ if(PULP_BUILD_TESTS)
 endif()
 
 pulp_add_plugin(Wah
-    FORMATS           VST3 CLAP Standalone
+    FORMATS           VST3 AU CLAP
     PLUGIN_NAME       "Wah-Wah"
     BUNDLE_ID         "com.pulp.examples.wah"
     MANUFACTURER      "Pulp Examples"
-    VERSION           "0.1.0"
+    VERSION           "0.2.0"
     CATEGORY          Effect
     PLUGIN_CODE       "PWah"
     MANUFACTURER_CODE "PlpX"

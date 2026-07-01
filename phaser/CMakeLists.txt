@@ -8,11 +8,11 @@ if(PULP_BUILD_TESTS)
 endif()
 
 pulp_add_plugin(Phaser
-    FORMATS           VST3 CLAP Standalone
+    FORMATS           VST3 AU CLAP
     PLUGIN_NAME       "Phaser"
     BUNDLE_ID         "com.pulp.examples.phaser"
     MANUFACTURER      "Pulp Examples"
-    VERSION           "0.1.0"
+    VERSION           "0.2.0"
     CATEGORY          Effect
     PLUGIN_CODE       "PPhs"
     MANUFACTURER_CODE "PlpX"
