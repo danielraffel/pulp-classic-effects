@@ -100,6 +100,7 @@ public:
         }
         write_pos_ = 0;
         phase_ = 0.0f;
+        delay_init_ = false;  // snap smoothed base delay / width on frame 0
     }
 
     void process(audio::BufferView<float>& output,
@@ -114,8 +115,14 @@ public:
             for (auto& line : lines_) std::fill(line.begin(), line.end(), 0.0f);
             write_pos_ = 0;
             phase_ = 0.0f;
+            delay_init_ = false;  // re-snap the smoothed base delay / width
         }
 
+        // Base Delay and Width are *targets*: they are smoothed toward per
+        // sample (below) so turning either knob glides the comb centre / sweep
+        // amount instead of stepping the base read position once per block. The
+        // LFO still rides on top of the smoothed base, so the swept sound at
+        // steady state is unchanged.
         const float delay_s = state().get_value(kFlangerDelay);
         const float width_s = state().get_value(kFlangerWidth);
         const float depth   = std::clamp(state().get_value(kFlangerDepth), 0.0f, 1.0f);
@@ -131,11 +138,21 @@ public:
         // cubic neighbourhood and never let the read collide with the write head.
         const float max_d = buf_len_f - 3.0f;
         const float phase_inc = rate / sample_rate_;
+        // One-pole coefficient reaching the target with a ~30 ms time constant.
+        const float smooth = 1.0f - std::exp(-1.0f / (kSmoothSecs * sample_rate_));
+        if (!delay_init_) {
+            smoothed_delay_s_ = delay_s;
+            smoothed_width_s_ = width_s;
+            delay_init_ = true;
+        }
 
         for (std::size_t i = 0; i < frames; ++i) {
+            // Glide the base Delay / Width once per frame, shared across channels.
+            smoothed_delay_s_ += smooth * (delay_s - smoothed_delay_s_);
+            smoothed_width_s_ += smooth * (width_s - smoothed_width_s_);
             for (std::size_t ch = 0; ch < channels; ++ch) {
                 const float ph = (stereo && ch != 0) ? wrap01(phase_ + 0.25f) : phase_;
-                float d_samp = (delay_s + width_s * lfo(ph, wave)) * sample_rate_;
+                float d_samp = (smoothed_delay_s_ + smoothed_width_s_ * lfo(ph, wave)) * sample_rate_;
                 d_samp = std::clamp(d_samp, 1.0f, max_d);
 
                 float read_pos = static_cast<float>(write_pos_) - d_samp;
@@ -163,6 +180,8 @@ public:
 private:
     static constexpr float kMaxDelaySecs = 0.04f;
     static constexpr float kTau = 6.283185307179586f;
+    // Time constant for the per-sample base Delay / Width glide (see process()).
+    static constexpr float kSmoothSecs = 0.03f;
 
     // Unipolar LFO in [0, 1]; phase is in [0, 1). Shapes follow the standard
     // textbook flanger sweep waveforms.
@@ -222,6 +241,9 @@ private:
     int buf_len_ = 8;
     int write_pos_ = 0;
     float phase_ = 0.0f;
+    float smoothed_delay_s_ = 0.0f;  // glided base delay, in seconds
+    float smoothed_width_s_ = 0.0f;  // glided sweep width, in seconds
+    bool delay_init_ = false;        // false → snap to targets on the next frame
     std::array<std::vector<float>, 8> lines_{};
 };
 

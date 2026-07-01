@@ -235,6 +235,56 @@ TEST_CASE("Flanger Interp selects the fractional read", "[flanger]") {
     REQUIRE(sum_abs_diff(linear, cubic, 1200) > 0.1);
 }
 
+TEST_CASE("Flanger smooths the base Delay knob so the read position glides", "[flanger]") {
+    // Static LFO (tiny width, slow rate), feedback off, depth 1: output = dry +
+    // delayed. Isolate the wet term as (out - dry). Change the base Delay knob
+    // abruptly between two blocks; per-sample smoothing glides the base read
+    // position so the wet term only pitch-bends, whereas the pre-fix per-block
+    // step would teleport the read and click.
+    constexpr int block = 1024;
+    constexpr float sr = 48000.0f, f = 220.0f, amp = 0.3f;
+
+    format::HeadlessHost h(create_flanger);
+    h.prepare(sr, block);
+    h.state().set_value(kFlangerRate, 0.05f);     // effectively static over 2 blocks
+    h.state().set_value(kFlangerWidth, 0.001f);   // negligible, ~constant sweep
+    h.state().set_value(kFlangerDepth, 1.0f);
+    h.state().set_value(kFlangerFeedback, 0.0f);
+    h.state().set_value(kFlangerInterp, 1.0f);    // linear
+
+    auto run_block = [&](int n0, std::vector<float>& wet) {
+        audio::Buffer<float> in(2, block), out(2, block);
+        std::vector<float> dry(block);
+        for (int n = 0; n < block; ++n) {
+            const float s = amp * std::sin(2.0f * kPi * f * (n0 + n) / sr);
+            in.channel(0)[n] = s; in.channel(1)[n] = s; dry[n] = s;
+        }
+        const float* ip[2] = {in.channel(0).data(), in.channel(1).data()};
+        audio::BufferView<const float> iv(ip, 2, block);
+        auto ov = out.view();
+        midi::MidiBuffer a, b;
+        h.process(ov, iv, a, b, format::ProcessContext{});
+        wet.resize(block);
+        for (int n = 0; n < block; ++n) wet[n] = out.channel(0)[n] - dry[n];
+    };
+
+    std::vector<float> w1, w2;
+    h.state().set_value(kFlangerDelay, 0.015f);   // 720 samples
+    run_block(0, w1);
+    h.state().set_value(kFlangerDelay, 0.002f);   // 96 samples — big abrupt change
+    run_block(block, w2);
+    REQUIRE(v::check_finite(w1));
+    REQUIRE(v::check_finite(w2));
+
+    // Largest sample-to-sample jump of the isolated wet term across the boundary
+    // and through the glide. The delayed 220 Hz / 0.3-amp copy slews
+    // ~0.0086/sample; the glide adds a little. 0.05 is smooth yet far below a jump.
+    float max_step = std::fabs(w2[0] - w1[block - 1]);
+    for (int n = 1; n < block; ++n)
+        max_step = std::max(max_step, std::fabs(w2[n] - w2[n - 1]));
+    REQUIRE(max_step < 0.05f);
+}
+
 TEST_CASE("Flanger Stereo offsets the channels", "[flanger]") {
     auto input = sine(220.0f, 24000);
 

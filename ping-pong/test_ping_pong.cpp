@@ -2,6 +2,7 @@
 #include "ping_pong.hpp"
 #include <pulp/format/headless.hpp>
 #include <pulp/format/validation_assertions.hpp>
+#include <algorithm>
 #include <cmath>
 #include <vector>
 
@@ -146,6 +147,50 @@ TEST_CASE("Ping-pong feedback regenerates and decays", "[pingpong]") {
     const double tail_lo = energy(lo.l, 2 * d) + energy(lo.r, 2 * d);
     const double tail_hi = energy(hi.l, 2 * d) + energy(hi.r, 2 * d);
     REQUIRE(tail_hi > tail_lo);
+}
+
+TEST_CASE("Ping-pong smooths the Time knob so the tap position glides", "[pingpong]") {
+    // Left-only tone, balance=0 (left feeds its own tap), feedback off, wet-only:
+    // out.l is the delayed left tone. Change Time abruptly between two blocks;
+    // per-sample smoothing keeps the wet bounce continuous (pitch-bend only),
+    // whereas the pre-fix per-block step would click the tap.
+    constexpr int block = 1024;
+    constexpr float sr = 48000.0f, f = 220.0f, amp = 0.5f;
+    constexpr float kPi = 3.14159265358979323846f;
+
+    format::HeadlessHost h(create_ping_pong);
+    h.prepare(sr, block);
+    h.state().set_value(kPingBalance, 0.0f);   // left input feeds the left tap 1:1
+    h.state().set_value(kPingFeedback, 0.0f);
+    h.state().set_value(kPingMix, 1.0f);       // wet-only
+
+    auto run_block = [&](int n0) {
+        audio::Buffer<float> in(2, block), out(2, block);
+        for (int n = 0; n < block; ++n) {
+            const float s = amp * std::sin(2.0f * kPi * f * (n0 + n) / sr);
+            in.channel(0)[n] = s; in.channel(1)[n] = 0.0f;
+        }
+        const float* ip[2] = {in.channel(0).data(), in.channel(1).data()};
+        audio::BufferView<const float> iv(ip, 2, block);
+        auto ov = out.view();
+        midi::MidiBuffer a, b;
+        h.process(ov, iv, a, b, format::ProcessContext{});
+        std::vector<float> r(block);
+        for (int n = 0; n < block; ++n) r[n] = out.channel(0)[n];
+        return r;
+    };
+
+    h.state().set_value(kPingTime, 0.02f);     // 960 samples
+    auto b1 = run_block(0);
+    h.state().set_value(kPingTime, 0.004f);    // 192 samples — big abrupt change
+    auto b2 = run_block(block);
+    REQUIRE(v::check_finite(b1));
+    REQUIRE(v::check_finite(b2));
+
+    float max_step = std::fabs(b2[0] - b1[block - 1]);
+    for (int n = 1; n < block; ++n)
+        max_step = std::max(max_step, std::fabs(b2[n] - b2[n - 1]));
+    REQUIRE(max_step < 0.05f);
 }
 
 TEST_CASE("Ping-pong mix=0 is dry with no echoes", "[pingpong]") {

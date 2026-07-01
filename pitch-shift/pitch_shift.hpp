@@ -187,14 +187,22 @@ public:
             auto& out_ring = pv_.output_buffer[ch];
 
             for (int i = 0; i < frames; ++i) {
-                // Read the synthesised output first so a zero-latency tap is
-                // possible (the ring is pre-filled with zeros), then clear it.
+                // Capture the input sample BEFORE writing the output. Most AU /
+                // VST / CLAP hosts render in place — `out` aliases `in` — so
+                // writing out[i] first would clobber in[i] before it reaches the
+                // analysis ring. During priming the output ring is all zeros, so
+                // the clobber fed the vocoder silence and the plugin was silent
+                // in every in-place host (fine in the separate-buffer tests).
+                const float x = in[i];
+
+                // Read the synthesised output (ring is pre-filled with zeros),
+                // then clear that slot for the next overlap-add pass.
                 const float y = out_ring[pv_.output_read_pos];
                 out_ring[pv_.output_read_pos] = 0.0f;
                 if (++pv_.output_read_pos >= pv_.output_len) pv_.output_read_pos = 0;
                 out[i] = y;
 
-                in_ring[pv_.input_write_pos] = in[i];
+                in_ring[pv_.input_write_pos] = x;
                 if (++pv_.input_write_pos >= pv_.fft_size) pv_.input_write_pos = 0;
 
                 if (++pv_.samples_since_last_fft >= hop) {

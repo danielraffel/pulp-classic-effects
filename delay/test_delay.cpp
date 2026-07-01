@@ -81,6 +81,53 @@ TEST_CASE("Delay feedback produces repeating, decaying echoes", "[delay]") {
     REQUIRE(e3 < e2);
 }
 
+TEST_CASE("Delay smooths the Time knob so the read position glides", "[delay]") {
+    // Feed a steady tone wet-only (feedback off) so the output IS the delayed
+    // tone. Change Time abruptly between two process blocks: with per-sample
+    // smoothing the read position glides (the tone only pitch-bends), so the
+    // output stays continuous. The pre-fix per-block step would teleport the
+    // read position and produce a click many times larger than the tone's slope.
+    constexpr int block = 1024;
+    constexpr float sr = 48000.0f, f = 220.0f, amp = 0.5f;
+    constexpr float kPi = 3.14159265358979323846f;
+
+    format::HeadlessHost h(create_delay);
+    h.prepare(sr, block);
+    h.state().set_value(kFeedback, 0.0f);
+    h.state().set_value(kDelayMix, 1.0f);   // wet-only
+
+    auto run_block = [&](int n0) {
+        audio::Buffer<float> in(2, block), out(2, block);
+        for (int n = 0; n < block; ++n) {
+            const float s = amp * std::sin(2.0f * kPi * f * (n0 + n) / sr);
+            in.channel(0)[n] = s; in.channel(1)[n] = s;
+        }
+        const float* ip[2] = {in.channel(0).data(), in.channel(1).data()};
+        audio::BufferView<const float> iv(ip, 2, block);
+        auto ov = out.view();
+        midi::MidiBuffer a, b;
+        h.process(ov, iv, a, b, format::ProcessContext{});
+        std::vector<float> r(block);
+        for (int n = 0; n < block; ++n) r[n] = out.channel(0)[n];
+        return r;
+    };
+
+    h.state().set_value(kTimeMs, 0.02f);    // 960 samples
+    auto b1 = run_block(0);
+    h.state().set_value(kTimeMs, 0.004f);   // 192 samples — big abrupt change
+    auto b2 = run_block(block);
+    REQUIRE(v::check_finite(b1));
+    REQUIRE(v::check_finite(b2));
+
+    // Largest sample-to-sample jump across the block boundary and through the
+    // glide. A 220 Hz / 0.5-amp tone slews ~0.014/sample; the glide's pitch-bend
+    // adds a little. 0.05 is comfortably smooth yet far below an abrupt jump.
+    float max_step = std::fabs(b2[0] - b1[block - 1]);
+    for (int n = 1; n < block; ++n)
+        max_step = std::max(max_step, std::fabs(b2[n] - b2[n - 1]));
+    REQUIRE(max_step < 0.05f);
+}
+
 TEST_CASE("Delay with mix=0 passes the dry signal through unchanged", "[delay]") {
     format::HeadlessHost h(create_delay);
     h.prepare(48000.0, 512);

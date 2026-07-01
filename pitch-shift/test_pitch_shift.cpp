@@ -45,6 +45,61 @@ std::pair<std::vector<float>, std::vector<float>> render_both(
     return {l, r};
 }
 
+// Render mono->stereo through the processor in many small blocks, exactly as a
+// DAW streams audio (prepare() once, then repeated process() calls). Returns
+// channel 0. `block` is the host block size; the last block may be short.
+std::vector<float> render_streaming(format::HeadlessHost& h,
+                                    const std::vector<float>& mono, int block) {
+    const int frames = (int)mono.size();
+    std::vector<float> result(frames, 0.0f);
+    audio::Buffer<float> in(2, block), out(2, block);
+    int pos = 0;
+    while (pos < frames) {
+        const int n = std::min(block, frames - pos);
+        for (int i = 0; i < n; ++i) { in.channel(0)[i] = mono[pos + i]; in.channel(1)[i] = mono[pos + i]; }
+        const float* ip[2] = {in.channel(0).data(), in.channel(1).data()};
+        float* op[2] = {out.channel(0).data(), out.channel(1).data()};
+        audio::BufferView<const float> iv(ip, 2, (std::size_t)n);
+        audio::BufferView<float> ov(op, 2, (std::size_t)n);
+        midi::MidiBuffer a, b;
+        h.process(ov, iv, a, b, format::ProcessContext{});
+        for (int i = 0; i < n; ++i) result[pos + i] = out.channel(0)[i];
+        pos += n;
+    }
+    return result;
+}
+
+// Render mono->stereo IN PLACE (output buffer aliases the input buffer), the way
+// most AU/VST hosts call process(). Each block's samples live in a single buffer
+// that is both read as input and written as output. Returns channel 0.
+std::vector<float> render_streaming_in_place(format::HeadlessHost& h,
+                                             const std::vector<float>& mono, int block) {
+    const int frames = (int)mono.size();
+    std::vector<float> result(frames, 0.0f);
+    audio::Buffer<float> buf(2, block);   // single shared in/out buffer
+    int pos = 0;
+    while (pos < frames) {
+        const int n = std::min(block, frames - pos);
+        for (int i = 0; i < n; ++i) { buf.channel(0)[i] = mono[pos + i]; buf.channel(1)[i] = mono[pos + i]; }
+        float* p[2] = {buf.channel(0).data(), buf.channel(1).data()};
+        const float* cp[2] = {buf.channel(0).data(), buf.channel(1).data()};
+        audio::BufferView<const float> iv(cp, 2, (std::size_t)n);
+        audio::BufferView<float> ov(p, 2, (std::size_t)n);   // same memory as iv
+        midi::MidiBuffer a, b;
+        h.process(ov, iv, a, b, format::ProcessContext{});
+        for (int i = 0; i < n; ++i) result[pos + i] = buf.channel(0)[i];
+        pos += n;
+    }
+    return result;
+}
+
+// RMS over [from, end).
+float rms_from(const std::vector<float>& x, int from) {
+    double acc = 0.0; int c = 0;
+    for (int n = from; n < (int)x.size(); ++n) { acc += (double)x[n] * x[n]; ++c; }
+    return c > 0 ? (float)std::sqrt(acc / c) : 0.0f;
+}
+
 std::vector<float> sine(float amp, float hz, int n, float sr = 48000.0f) {
     std::vector<float> s(n);
     for (int i = 0; i < n; ++i) s[i] = amp * std::sin(2.0f * kPi * hz * i / sr);
@@ -152,6 +207,89 @@ TEST_CASE("Pitch shift is finite and bounded across every FFT size and window", 
             REQUIRE(v::check_any_nonzero(out));
             REQUIRE(peak_abs(out, 0) < 4.0f);
         }
+    }
+}
+
+TEST_CASE("Pitch shift streams continuous output across small DAW block sizes", "[pitchshift]") {
+    // A DAW calls process() repeatedly with small, arbitrary block sizes. Feed a
+    // sustained sine through many small blocks and assert the settled tail is
+    // non-silent for every block size, including one that does not divide the hop.
+    const float amp = 0.3f;
+    const auto tone = sine(amp, 250.0f, kN);
+    for (int block : {64, 128, 512, 100}) {
+        format::HeadlessHost h(create_pitch_shift);
+        setup(h, 12.0f, /*1024*/2, /*1/8*/2, /*Hann*/1);   // latency = 1024 samples
+        auto out = render_streaming(h, tone, block);
+        INFO("block size = " << block);
+        REQUIRE(v::check_finite(out));
+        REQUIRE(v::check_any_nonzero(out));
+        // Measure only the settled tail (well past the reported latency).
+        const float tail_rms = rms_from(out, kTail0);
+        INFO("tail RMS = " << tail_rms);
+        REQUIRE(tail_rms > 0.02f);         // sustained, not a brief blip then silence
+        REQUIRE(peak_abs(out, kTail0) < 2.0f);
+        // Pitch is still shifted up an octave (~96-sample period) when streamed.
+        const int p = detect_period(out, 70, 140);
+        REQUIRE(p > 84); REQUIRE(p < 108);
+    }
+}
+
+TEST_CASE("Pitch shift produces sound with in-place buffers (DAW render path)", "[pitchshift]") {
+    // AU (AUEffectBase) and most VST/CLAP hosts hand process() a single buffer
+    // that is BOTH the input and the output (in-place). This is the path that was
+    // silent in a DAW while the separate-buffer headless tests passed. Assert the
+    // in-place output is sustained and non-silent for every block size, and that
+    // it matches the separate-buffer result.
+    const float amp = 0.3f;
+    const auto tone = sine(amp, 250.0f, kN);
+
+    format::HeadlessHost h_ref(create_pitch_shift);
+    setup(h_ref, 12.0f, /*1024*/2, /*1/8*/2, /*Hann*/1);
+    auto ref = render_streaming(h_ref, tone, 128);   // separate-buffer reference
+
+    for (int block : {64, 128, 512, 100}) {
+        format::HeadlessHost h(create_pitch_shift);
+        setup(h, 12.0f, /*1024*/2, /*1/8*/2, /*Hann*/1);
+        auto out = render_streaming_in_place(h, tone, block);
+        INFO("in-place block size = " << block);
+        REQUIRE(v::check_finite(out));
+        REQUIRE(v::check_any_nonzero(out));
+        const float tail_rms = rms_from(out, kTail0);
+        INFO("in-place tail RMS = " << tail_rms);
+        REQUIRE(tail_rms > 0.02f);          // in-place must NOT be silent
+        REQUIRE(peak_abs(out, kTail0) < 2.0f);
+        const int p = detect_period(out, 70, 140);   // still an octave up
+        REQUIRE(p > 84); REQUIRE(p < 108);
+    }
+
+    // In-place and separate-buffer paths must agree at the same block size.
+    format::HeadlessHost h(create_pitch_shift);
+    setup(h, 12.0f, /*1024*/2, /*1/8*/2, /*Hann*/1);
+    auto ip = render_streaming_in_place(h, tone, 128);
+    float max_diff = 0.0f;
+    for (int n = 0; n < kN; ++n) max_diff = std::max(max_diff, std::fabs(ip[n] - ref[n]));
+    INFO("in-place vs separate-buffer max abs diff = " << max_diff);
+    REQUIRE(max_diff < 1e-4f);
+}
+
+TEST_CASE("Pitch shift streaming matches one-shot output sample-for-sample", "[pitchshift]") {
+    // The block boundary must not change the result: streaming in small blocks
+    // must produce the identical signal to a single large process() call.
+    const auto tone = sine(0.3f, 250.0f, kN);
+
+    format::HeadlessHost h_ref(create_pitch_shift);
+    setup(h_ref, 12.0f, /*1024*/2, /*1/8*/2, /*Hann*/1);
+    auto ref = render(h_ref, tone);
+
+    for (int block : {64, 128, 100}) {
+        format::HeadlessHost h(create_pitch_shift);
+        setup(h, 12.0f, /*1024*/2, /*1/8*/2, /*Hann*/1);
+        auto out = render_streaming(h, tone, block);
+        INFO("block size = " << block);
+        float max_diff = 0.0f;
+        for (int n = 0; n < kN; ++n) max_diff = std::max(max_diff, std::fabs(out[n] - ref[n]));
+        INFO("max abs diff vs one-shot = " << max_diff);
+        REQUIRE(max_diff < 1e-4f);
     }
 }
 

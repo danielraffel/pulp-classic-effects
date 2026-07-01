@@ -66,6 +66,7 @@ public:
         for (auto& line : lines_) {
             line.prepare(max_delay_);
         }
+        delay_init_ = false;  // snap the smoothed delay to the target on frame 0
     }
 
     void process(audio::BufferView<float>& output,
@@ -77,24 +78,40 @@ public:
         const std::size_t frames = output.num_samples();
 
         // Clear stale echo history on a transport seek/loop so a previous
-        // location's tail doesn't leak into the new one.
-        if (ctx.should_reset_dsp_state())
+        // location's tail doesn't leak into the new one, and re-snap the
+        // smoothed delay to the target on the next frame.
+        if (ctx.should_reset_dsp_state()) {
             for (auto& line : lines_) line.reset();
+            delay_init_ = false;
+        }
 
         const float mix = std::clamp(state().get_value(kDelayMix), 0.0f, 1.0f);
         const float fb = std::clamp(state().get_value(kFeedback), 0.0f, 0.9f);
-        // Time parameter is in seconds.
-        float delay_samples = state().get_value(kTimeMs) * sample_rate_;
-        delay_samples = std::clamp(delay_samples, 1.0f,
-                                   static_cast<float>(max_delay_ - 1));
+        // Time parameter is in seconds. This is the *target* delay length: the
+        // read position is smoothed toward it per sample (below) so turning the
+        // Time knob glides the delay instead of stepping it once per block.
+        // A per-block step teleports the fractional read position and clicks /
+        // zippers the wet tail; a per-sample glide only bends its pitch.
+        float delay_target = state().get_value(kTimeMs) * sample_rate_;
+        delay_target = std::clamp(delay_target, 1.0f,
+                                  static_cast<float>(max_delay_ - 1));
+        // One-pole coefficient that reaches the target with a ~30 ms time
+        // constant; at steady state smoothed_delay_ == delay_target, so the
+        // default sound is unchanged.
+        const float smooth = 1.0f - std::exp(-1.0f / (kSmoothSecs * sample_rate_));
+        if (!delay_init_) { smoothed_delay_ = delay_target; delay_init_ = true; }
 
-        for (std::size_t ch = 0; ch < channels; ++ch) {
-            auto in = input.channel(ch);
-            auto out = output.channel(ch);
-            auto& line = lines_[ch];
-            for (std::size_t i = 0; i < frames; ++i) {
+        for (std::size_t i = 0; i < frames; ++i) {
+            // Advance the shared smoothed delay once per frame, before the
+            // per-channel taps, so every channel reads the same length.
+            smoothed_delay_ += smooth * (delay_target - smoothed_delay_);
+            const float d = smoothed_delay_;
+            for (std::size_t ch = 0; ch < channels; ++ch) {
+                auto in = input.channel(ch);
+                auto out = output.channel(ch);
+                auto& line = lines_[ch];
                 const float dry = in[i];
-                const float wet = line.read(delay_samples);
+                const float wet = line.read(d);  // fractional (interpolated) read
                 // Flush denormals: a decaying feedback tail drifts into
                 // subnormal range and stalls the audio thread on real hardware.
                 float fed = dry + wet * fb;
@@ -113,8 +130,12 @@ private:
             for (std::size_t i = 0; i < out.num_samples(); ++i) o[i] = 0.0f;
         }
     }
+    // Time constant for the per-sample delay-length glide (see process()).
+    static constexpr float kSmoothSecs = 0.03f;
     float sample_rate_ = 48000.0f;
     int max_delay_ = 240004;
+    float smoothed_delay_ = 0.0f;  // current (glided) delay length, in samples
+    bool delay_init_ = false;      // false → snap to target on the next frame
     std::array<signal::DelayLine, 8> lines_{};
 };
 

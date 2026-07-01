@@ -70,6 +70,7 @@ public:
         max_delay_ = static_cast<int>(sample_rate_ * kPingMaxDelaySecs) + 4;
         left_.prepare(max_delay_);
         right_.prepare(max_delay_);
+        delay_init_ = false;  // snap the smoothed bounce length on frame 0
     }
 
     void process(audio::BufferView<float>& output,
@@ -80,18 +81,28 @@ public:
         const std::size_t out_ch = output.num_channels();
         const std::size_t frames = output.num_samples();
 
-        if (ctx.should_reset_dsp_state()) { left_.reset(); right_.reset(); }
+        if (ctx.should_reset_dsp_state()) {
+            left_.reset(); right_.reset();
+            delay_init_ = false;  // re-snap the smoothed bounce length
+        }
 
         const float balance = std::clamp(state().get_value(kPingBalance), 0.0f, 1.0f);
         const float mix = std::clamp(state().get_value(kPingMix), 0.0f, 1.0f);
         const float fb = std::clamp(state().get_value(kPingFeedback), 0.0f, 0.9f);
-        float d = state().get_value(kPingTime) * sample_rate_;
-        d = std::clamp(d, 1.0f, static_cast<float>(max_delay_ - 1));
+        // Target bounce length; smoothed toward per sample so turning the Time
+        // knob glides the tap position instead of stepping it once per block
+        // (a per-block step jumps the fractional read and clicks the bounce).
+        float d_target = state().get_value(kPingTime) * sample_rate_;
+        d_target = std::clamp(d_target, 1.0f, static_cast<float>(max_delay_ - 1));
+        const float smooth = 1.0f - std::exp(-1.0f / (kSmoothSecs * sample_rate_));
+        if (!delay_init_) { smoothed_delay_ = d_target; delay_init_ = true; }
 
         // Stereo cross-coupled path needs both channels updated in lock-step, so
         // process per-sample across channels rather than channel-by-channel.
         if (out_ch >= 2 && in_ch >= 1) {
             for (std::size_t i = 0; i < frames; ++i) {
+                smoothed_delay_ += smooth * (d_target - smoothed_delay_);
+                const float d = smoothed_delay_;
                 const float inL = input.channel(0)[i];
                 const float inR = (in_ch >= 2) ? input.channel(1)[i] : inL;
                 // Balance biases which input channel drives the taps:
@@ -115,6 +126,8 @@ public:
         } else {
             // Mono fallback: behaves as a single feedback delay on the left line.
             for (std::size_t i = 0; i < frames; ++i) {
+                smoothed_delay_ += smooth * (d_target - smoothed_delay_);
+                const float d = smoothed_delay_;
                 const float dry = (1.0f - balance) * input.channel(0)[i];
                 const float wet = left_.read(d);
                 float fed = dry + fb * wet;
@@ -133,8 +146,12 @@ private:
             for (std::size_t i = 0; i < out.num_samples(); ++i) o[i] = 0.0f;
         }
     }
+    // Time constant for the per-sample bounce-length glide (see process()).
+    static constexpr float kSmoothSecs = 0.03f;
     float sample_rate_ = 48000.0f;
     int max_delay_ = 240004;
+    float smoothed_delay_ = 0.0f;  // current (glided) bounce length, in samples
+    bool delay_init_ = false;      // false → snap to target on the next frame
     signal::DelayLine left_, right_;
 };
 
