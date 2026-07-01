@@ -12,7 +12,7 @@ pulp_add_plugin(PingPong
     PLUGIN_NAME       "Ping-Pong Delay"
     BUNDLE_ID         "com.pulp.examples.pingpong"
     MANUFACTURER      "Pulp Examples"
-    VERSION           "0.2.0"
+    VERSION           "0.2.2"
     CATEGORY          Effect
     PLUGIN_CODE       "PPpd"
     MANUFACTURER_CODE "PlpX"

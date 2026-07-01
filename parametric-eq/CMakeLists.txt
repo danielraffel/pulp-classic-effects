@@ -12,7 +12,7 @@ pulp_add_plugin(ParametricEq
     PLUGIN_NAME       "Parametric EQ"
     BUNDLE_ID         "com.pulp.examples.parametric-eq"
     MANUFACTURER      "Pulp Examples"
-    VERSION           "0.2.0"
+    VERSION           "0.2.2"
     CATEGORY          Effect
     PLUGIN_CODE       "PPeq"
     MANUFACTURER_CODE "PlpX"

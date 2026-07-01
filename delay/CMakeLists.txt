@@ -12,7 +12,7 @@ pulp_add_plugin(Delay
     PLUGIN_NAME       "Delay"
     BUNDLE_ID         "com.pulp.examples.delay"
     MANUFACTURER      "Pulp Examples"
-    VERSION           "0.2.0"
+    VERSION           "0.2.2"
     CATEGORY          Effect
     PLUGIN_CODE       "PDly"
     MANUFACTURER_CODE "PlpX"

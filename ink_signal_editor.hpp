@@ -188,7 +188,10 @@ inline std::unique_ptr<view::View> build_effect_editor(state::StateStore& store,
     auto make_widget = [&](const Control& ctl, float cell_w) -> std::unique_ptr<View> {
         // Dropdown-style widgets fill their (possibly 2-column) cell so they read
         // as wider than a knob; knob/toggle/fader keep their fixed intrinsic size.
-        const float fill_w = (cell_w - 12.0f > 96.0f) ? cell_w - 12.0f : 96.0f;
+        // Inset ~14px each side within the cell so a combo in the last column has
+        // clear breathing room from the panel edge (matching the left margin)
+        // instead of brushing the border.
+        const float fill_w = (cell_w - 28.0f > 96.0f) ? cell_w - 28.0f : 96.0f;
         switch (ctl.kind) {
             case Control::Kind::Toggle: {
                 auto [toggle, binding] = attach_toggle(store, ctl.id);
