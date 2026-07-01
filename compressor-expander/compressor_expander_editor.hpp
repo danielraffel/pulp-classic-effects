@@ -13,6 +13,7 @@ inline std::unique_ptr<view::View> build_compressor_expander_editor(state::State
     return build_effect_editor(store, EffectEditorSpec{
         .title = "COMPRESSOR",
         .subtitle = "stereo-linked dynamics",
+        .grid_cols = 4,
         .controls = {{kMode, "Mode", Control::Kind::Combo, {"Compressor", "Expander"}},
                      {kThreshold, "Thresh"},
                      {kRatio, "Ratio"},

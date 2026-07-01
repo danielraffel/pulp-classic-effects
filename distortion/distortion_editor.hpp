@@ -15,6 +15,7 @@ inline std::unique_ptr<view::View> build_distortion_editor(state::StateStore& st
     return build_effect_editor(store, EffectEditorSpec{
         .title = "DISTORTION",
         .subtitle = "waveshaper + tone tilt",
+        .grid_cols = 5,
         .controls = {{kDistType, "Type", Control::Kind::Combo,
                       {"Hard Clip", "Soft Clip", "Exponential", "Full Rect", "Half Rect"}},
                      {kDistInGain, "In"},

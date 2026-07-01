@@ -38,6 +38,10 @@ struct Control {
     std::string caption;
     enum class Kind { Knob, Toggle, Combo, Fader, Stepper } kind = Kind::Knob;
     std::vector<std::string> items;  // Combo / Stepper option labels
+    // Grid columns this control spans. 0 = auto: Combo/Stepper take 2 (wider, for
+    // their text labels), Knob/Toggle/Fader take 1. Override to 1 for a combo with
+    // short options (e.g. "512", "4") so it stays knob-width.
+    int span = 0;
 };
 
 // Back-compat alias: a knob-kind control described by id + caption only. Editors
@@ -60,6 +64,11 @@ struct EffectEditorSpec {
     std::vector<std::string> log_items;
     state::ParamID bypass_id = 0;   // 0 = no bypass row
     bool has_bypass = true;
+
+    // Grid width in columns. 0 = single row (columns = total span). Set it to
+    // wrap controls into semantic rows — e.g. 6 puts a Type dropdown (span 2) +
+    // four knobs on one row, then the modulation group on the next.
+    int grid_cols = 0;
 
     // Optional free-text field bound to NON-parameter plugin state. The
     // StateStore only holds numeric params, so a string memo is reached through
@@ -100,8 +109,32 @@ inline std::unique_ptr<view::View> build_effect_editor(state::StateStore& store,
 
     constexpr float kPad = 24.0f, kCell = 110.0f, kGap = 16.0f, kRowH = 116.0f;
     const int n = static_cast<int>(controls.size());
-    const int cols = n < 4 ? (n < 1 ? 1 : n) : 4;
-    const int rows = (n + 3) / 4;
+
+    // Span-aware grid. Combos/steppers occupy 2 columns (wider, for their text
+    // labels); knobs/toggles/faders 1 — unless a control overrides `span`.
+    // Controls flow left-to-right and wrap when the next span would exceed
+    // `grid_cols`, so continuous knobs cluster and discrete dropdowns group
+    // (matching the reference plugins' layout).
+    auto span_of = [](const Control& c) -> int {
+        if (c.span > 0) return c.span;
+        return (c.kind == Control::Kind::Combo || c.kind == Control::Kind::Stepper) ? 2 : 1;
+    };
+    int total_span = 0;
+    for (const auto& c : controls) total_span += span_of(c);
+    const int cols = spec.grid_cols > 0 ? spec.grid_cols : (total_span < 1 ? 1 : total_span);
+    std::vector<std::vector<int>> row_idx;
+    {
+        std::vector<int> cur;
+        int used = 0;
+        for (int i = 0; i < n; ++i) {
+            const int s = span_of(controls[i]);
+            if (used > 0 && used + s > cols) { row_idx.push_back(cur); cur.clear(); used = 0; }
+            cur.push_back(i);
+            used += s;
+        }
+        if (!cur.empty()) row_idx.push_back(cur);
+    }
+    const int rows = static_cast<int>(row_idx.size());
 
     const bool has_footer = !spec.log_items.empty() || !spec.status_line.empty();
     constexpr float kStatusH = 18.0f, kLogRowH = 20.0f;
@@ -152,7 +185,10 @@ inline std::unique_ptr<view::View> build_effect_editor(state::StateStore& store,
 
     // Build the widget for one control, binding it to the store and pushing any
     // resulting Binding onto the root so host automation can be polled later.
-    auto make_widget = [&](const Control& ctl) -> std::unique_ptr<View> {
+    auto make_widget = [&](const Control& ctl, float cell_w) -> std::unique_ptr<View> {
+        // Dropdown-style widgets fill their (possibly 2-column) cell so they read
+        // as wider than a knob; knob/toggle/fader keep their fixed intrinsic size.
+        const float fill_w = (cell_w - 12.0f > 96.0f) ? cell_w - 12.0f : 96.0f;
         switch (ctl.kind) {
             case Control::Kind::Toggle: {
                 auto [toggle, binding] = attach_toggle(store, ctl.id);
@@ -164,7 +200,7 @@ inline std::unique_ptr<view::View> build_effect_editor(state::StateStore& store,
             }
             case Control::Kind::Combo: {
                 auto [combo, binding] = attach_combo(store, ctl.id, ctl.items);
-                combo->flex().preferred_width = 96.0f; combo->flex().preferred_height = 28.0f;
+                combo->flex().preferred_width = fill_w; combo->flex().preferred_height = 28.0f;
                 combo->flex().flex_grow = 0; combo->flex().flex_shrink = 0;
                 root->bindings.push_back(std::move(binding));
                 return std::move(combo);
@@ -207,25 +243,27 @@ inline std::unique_ptr<view::View> build_effect_editor(state::StateStore& store,
         }
     };
 
-    for (int r = 0; r < rows; ++r) {
+    for (const auto& idxs : row_idx) {
         auto control_row = std::make_unique<View>();
         control_row->flex().direction = FlexDirection::row;
         control_row->flex().align_items = FlexAlign::start;
         control_row->flex().gap = kGap;
         control_row->flex().preferred_height = kRowH; control_row->flex().flex_grow = 0;
 
-        for (int c = 0; c < 4 && r * 4 + c < n; ++c) {
-            const Control& ctl = controls[r * 4 + c];
+        for (int i : idxs) {
+            const Control& ctl = controls[i];
+            const int s = span_of(ctl);
+            const float cell_w = s * kCell + (s - 1) * kGap;  // span s columns
             auto cell = std::make_unique<View>();
             cell->flex().direction = FlexDirection::column;
             cell->flex().align_items = FlexAlign::center;
             cell->flex().justify_content = FlexJustify::center;
             cell->flex().gap = 8.0f;
-            cell->flex().preferred_width = kCell; cell->flex().preferred_height = kRowH;
+            cell->flex().preferred_width = cell_w; cell->flex().preferred_height = kRowH;
             cell->flex().flex_grow = 0; cell->flex().flex_shrink = 0;
 
-            cell->add_child(make_widget(ctl));
-            cell->add_child(label(ctl.caption, 12.0f, text, 96.0f, 16.0f));
+            cell->add_child(make_widget(ctl, cell_w));
+            cell->add_child(label(ctl.caption, 12.0f, text, cell_w, 16.0f));
             control_row->add_child(std::move(cell));
         }
         root->add_child(std::move(control_row));

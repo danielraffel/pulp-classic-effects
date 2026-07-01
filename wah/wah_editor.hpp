@@ -17,6 +17,7 @@ inline std::unique_ptr<view::View> build_wah_editor(state::StateStore& store) {
     return build_effect_editor(store, EffectEditorSpec{
         .title = "WAH-WAH",
         .subtitle = "swept resonant filter",
+        .grid_cols = 6,
         .controls = {{kWahFilterType, "Type", Control::Kind::Combo,
                       {"Res. LP", "Band-Pass", "Peaking"}},
                      {kWahFreq, "Freq"},

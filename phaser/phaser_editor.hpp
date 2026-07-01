@@ -18,15 +18,16 @@ inline std::unique_ptr<view::View> build_phaser_editor(state::StateStore& store)
     return build_effect_editor(store, EffectEditorSpec{
         .title = "PHASER",
         .subtitle = "swept all-pass notches",
+        .grid_cols = 5,
         .controls = {
             {kPhaserDepth, "Depth"},
             {kPhaserFeedback, "Fbk"},
-            {kPhaserStages, "Stages", Control::Kind::Combo, {"2", "4", "6", "8", "10"}},
+            {kPhaserStages, "Stages", Control::Kind::Combo, {"2", "4", "6", "8", "10"}, 1},
             {kPhaserMinFreq, "Min Hz"},
             {kPhaserSweep, "Sweep"},
             {kPhaserRate, "Rate"},
             {kPhaserWaveform, "Wave", Control::Kind::Combo,
-             {"Sine", "Triangle", "Square", "Sawtooth"}},
+             {"Sine", "Triangle", "Square", "Sawtooth"}, 1},
             {kPhaserStereo, "Stereo", Control::Kind::Toggle, {}},
         },
         .has_bypass = false,

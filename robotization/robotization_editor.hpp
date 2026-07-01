@@ -16,10 +16,11 @@ inline std::unique_ptr<view::View> build_robotization_editor(state::StateStore& 
     return build_effect_editor(store, EffectEditorSpec{
         .title = "ROBOTIZATION",
         .subtitle = "STFT phase manipulation",
+        .grid_cols = 6,
         .controls = {
             {kEffect,  "Effect",   Control::Kind::Combo, R::effect_labels()},
-            {kRobotFftSize, "FFT",      Control::Kind::Combo, R::fft_size_labels()},
-            {kRobotHop,     "Hop",      Control::Kind::Combo, R::hop_labels()},
+            {kRobotFftSize, "FFT",      Control::Kind::Combo, R::fft_size_labels(), 1},
+            {kRobotHop,     "Hop",      Control::Kind::Combo, R::hop_labels(), 1},
             {kRobotWindow,  "Window",   Control::Kind::Combo, R::window_labels()},
         },
         .has_bypass = false,

@@ -16,6 +16,7 @@ inline std::unique_ptr<view::View> build_parametric_eq_editor(state::StateStore&
     return build_effect_editor(store, EffectEditorSpec{
         .title = "PARAMETRIC EQ",
         .subtitle = "single-band selectable filter",
+        .grid_cols = 5,
         .controls = {
             {kEqFreq, "Freq", Control::Kind::Knob},
             {kQ,    "Q",    Control::Kind::Knob},

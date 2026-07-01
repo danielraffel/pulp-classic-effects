@@ -13,6 +13,7 @@ inline std::unique_ptr<view::View> build_vibrato_editor(state::StateStore& store
     return build_effect_editor(store, EffectEditorSpec{
         .title = "VIBRATO",
         .subtitle = "LFO pitch modulation",
+        .grid_cols = 6,
         .controls = {{kVibWidthSecs, "Width"},
                      {kVibRateHz, "Rate"},
                      {kVibWaveform, "Waveform", Control::Kind::Combo,

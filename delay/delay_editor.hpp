@@ -15,6 +15,7 @@ inline std::unique_ptr<view::View> build_delay_editor(state::StateStore& store) 
     return build_effect_editor(store, EffectEditorSpec{
         .title = "DELAY",
         .subtitle = "classic feedback echo",
+        .grid_cols = 3,
         .knobs = {{kTimeMs, "Time"}, {kFeedback, "Feedback"}, {kDelayMix, "Mix"}},
         .has_bypass = false,
     });

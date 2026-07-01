@@ -16,12 +16,13 @@ inline std::unique_ptr<view::View> build_pitch_shift_editor(state::StateStore& s
     return build_effect_editor(store, EffectEditorSpec{
         .title = "PITCH SHIFT",
         .subtitle = "phase-vocoder pitch shifter",
+        .grid_cols = 4,
         .controls = {{kShift, "Shift"},
                      {kPsFftSize, "FFT", Control::Kind::Combo,
-                      {"256", "512", "1024", "2048", "4096"}},
-                     {kPsHop, "Hop", Control::Kind::Combo, {"1/2", "1/4", "1/8"}},
+                      {"256", "512", "1024", "2048", "4096"}, 1},
+                     {kPsHop, "Hop", Control::Kind::Combo, {"1/2", "1/4", "1/8"}, 1},
                      {kPsWindow, "Window", Control::Kind::Combo,
-                      {"Bartlett", "Hann", "Hamming"}}},
+                      {"Bartlett", "Hann", "Hamming"}, 1}},
         .has_bypass = false,
     });
 }

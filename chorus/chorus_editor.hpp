@@ -19,6 +19,7 @@ inline std::unique_ptr<view::View> build_chorus_editor(state::StateStore& store)
     return build_effect_editor(store, EffectEditorSpec{
         .title = "CHORUS",
         .subtitle = "multi-voice ensemble thickener",
+        .grid_cols = 6,
         .controls = {{kChorusDelay, "Delay"},
                      {kChorusWidth, "Width"},
                      {kChorusDepth, "Depth"},

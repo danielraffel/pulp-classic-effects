@@ -19,6 +19,7 @@ inline std::unique_ptr<view::View> build_flanger_editor(state::StateStore& store
     return build_effect_editor(store, EffectEditorSpec{
         .title = "FLANGER",
         .subtitle = "swept comb with feedback",
+        .grid_cols = 6,
         .controls = {{kFlangerDelay, "Delay"},
                      {kFlangerWidth, "Width"},
                      {kFlangerDepth, "Depth"},

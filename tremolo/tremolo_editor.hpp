@@ -13,6 +13,7 @@ inline std::unique_ptr<view::View> build_tremolo_editor(state::StateStore& store
     return build_effect_editor(store, EffectEditorSpec{
         .title = "TREMOLO",
         .subtitle = "amplitude modulation",
+        .grid_cols = 4,
         // Order: Depth, Rate, Waveform. The Combo labels are the full waveform
         // set and must stay in the same order as TremoloWaveform.
         .controls = {{kTremDepth, "Depth"},

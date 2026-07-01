@@ -14,6 +14,7 @@ inline std::unique_ptr<view::View> build_panning_editor(state::StateStore& store
     return build_effect_editor(store, EffectEditorSpec{
         .title = "PANNING",
         .subtitle = "static stereo panner",
+        .grid_cols = 3,
         .controls = {{kMethod, "Method", Control::Kind::Combo, {"Pan+Pre", "ITD+ILD"}},
                      {kPan, "Pan"}},
         .has_bypass = false,

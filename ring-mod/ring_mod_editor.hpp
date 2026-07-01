@@ -13,6 +13,7 @@ inline std::unique_ptr<view::View> build_ring_mod_editor(state::StateStore& stor
     return build_effect_editor(store, EffectEditorSpec{
         .title = "RING MOD",
         .subtitle = "metallic carrier modulation",
+        .grid_cols = 4,
         .controls = {
             {kRmDepth, "Depth", Control::Kind::Knob},
             {kRmFreq, "Freq", Control::Kind::Knob},
