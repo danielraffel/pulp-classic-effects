@@ -228,23 +228,15 @@ inline std::unique_ptr<view::View> build_effect_editor(state::StateStore& store,
                 return std::move(fader);
             }
             case Control::Kind::Stepper: {
-                // No attach_* helper exists for DesignStepper, so mirror
-                // attach_combo's pattern by hand: seed from the stored value,
-                // write the selected index back on user steps, and keep a
-                // Binding for host-automation polling.
-                state::Binding binding(store, ctl.id);
-                const int sel = static_cast<int>(binding.get());
+                // Seed the initial selection from the stored value, then bind via
+                // bind_parameter(DesignStepper&) for gesture recording + the
+                // Main-thread listener that follows automation playback (same
+                // contract as the combo/knob controls).
+                const int sel = static_cast<int>(store.get_value(ctl.id));
                 auto stepper = std::make_unique<DesignStepper>(ctl.items, sel);
-                const auto param_id = ctl.id;
-                stepper->on_select = [&store, param_id](int index) {
-                    // One-shot gesture so the host records the discrete change.
-                    store.begin_gesture(param_id);
-                    store.set_value(param_id, static_cast<float>(index));
-                    store.end_gesture(param_id);
-                };
                 stepper->flex().preferred_width = 100.0f; stepper->flex().preferred_height = 28.0f;
                 stepper->flex().flex_grow = 0; stepper->flex().flex_shrink = 0;
-                root->bindings.push_back(std::move(binding));
+                root->param_bindings.push_back(bind_parameter(*stepper, store, ctl.id));
                 return std::move(stepper);
             }
             case Control::Kind::Knob:
