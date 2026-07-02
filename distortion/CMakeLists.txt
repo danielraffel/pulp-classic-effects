@@ -12,7 +12,7 @@ pulp_add_plugin(Distortion
     PLUGIN_NAME       "Distortion"
     BUNDLE_ID         "com.pulp.examples.distortion"
     MANUFACTURER      "Pulp Examples"
-    VERSION           "0.2.2"
+    VERSION           "0.2.3"
     CATEGORY          Effect
     PLUGIN_CODE       "PDst"
     MANUFACTURER_CODE "PlpX"

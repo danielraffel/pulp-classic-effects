@@ -19,6 +19,7 @@
 #include <pulp/state/parameter.hpp>
 #include <pulp/view/design_frame_view.hpp>
 #include <pulp/view/param_attachment.hpp>
+#include <pulp/view/parameter_binding.hpp>
 #include <pulp/view/text_editor.hpp>
 #include <pulp/view/ui_components.hpp>
 #include <pulp/view/view.hpp>
@@ -83,10 +84,16 @@ struct EffectEditorSpec {
 };
 
 // Root view that owns the parameter bindings so they outlive construction.
-// Poll the bindings periodically to pick up host automation.
+// `param_bindings` hold the RAII store-listener subscriptions (via
+// view::bind_parameter) that make each widget follow host-automation playback;
+// the plugin editor host pumps them per vsync (make_scripted_idle_pump →
+// store.pump_listeners()). Declared AFTER the View base is constructed but,
+// crucially, destroyed BEFORE it — members tear down before the base, so the
+// listeners unsubscribe before the widgets they capture are freed.
 class InkSignalEditorView : public view::View {
 public:
-    std::vector<state::Binding> bindings;
+    std::vector<state::Binding> bindings;                 // legacy (value seed)
+    std::vector<view::ParameterBinding> param_bindings;   // automation follow + gesture
 };
 
 inline std::unique_ptr<view::View> build_effect_editor(state::StateStore& store,
@@ -199,6 +206,7 @@ inline std::unique_ptr<view::View> build_effect_editor(state::StateStore& store,
                 toggle->flex().preferred_width = 52.0f; toggle->flex().preferred_height = 28.0f;
                 toggle->flex().flex_grow = 0; toggle->flex().flex_shrink = 0;
                 root->bindings.push_back(std::move(binding));
+                root->param_bindings.push_back(bind_parameter(*toggle, store, ctl.id));
                 return std::move(toggle);
             }
             case Control::Kind::Combo: {
@@ -206,6 +214,7 @@ inline std::unique_ptr<view::View> build_effect_editor(state::StateStore& store,
                 combo->flex().preferred_width = fill_w; combo->flex().preferred_height = 28.0f;
                 combo->flex().flex_grow = 0; combo->flex().flex_shrink = 0;
                 root->bindings.push_back(std::move(binding));
+                root->param_bindings.push_back(bind_parameter(*combo, store, ctl.id));
                 return std::move(combo);
             }
             case Control::Kind::Fader: {
@@ -215,6 +224,7 @@ inline std::unique_ptr<view::View> build_effect_editor(state::StateStore& store,
                 fader->flex().preferred_width = 40.0f; fader->flex().preferred_height = 84.0f;
                 fader->flex().flex_grow = 0; fader->flex().flex_shrink = 0;
                 root->bindings.push_back(std::move(binding));
+                root->param_bindings.push_back(bind_parameter(*fader, store, ctl.id));
                 return std::move(fader);
             }
             case Control::Kind::Stepper: {
@@ -227,7 +237,10 @@ inline std::unique_ptr<view::View> build_effect_editor(state::StateStore& store,
                 auto stepper = std::make_unique<DesignStepper>(ctl.items, sel);
                 const auto param_id = ctl.id;
                 stepper->on_select = [&store, param_id](int index) {
+                    // One-shot gesture so the host records the discrete change.
+                    store.begin_gesture(param_id);
                     store.set_value(param_id, static_cast<float>(index));
+                    store.end_gesture(param_id);
                 };
                 stepper->flex().preferred_width = 100.0f; stepper->flex().preferred_height = 28.0f;
                 stepper->flex().flex_grow = 0; stepper->flex().flex_shrink = 0;
@@ -241,6 +254,7 @@ inline std::unique_ptr<view::View> build_effect_editor(state::StateStore& store,
                 knob->flex().preferred_width = 84.0f; knob->flex().preferred_height = 84.0f;
                 knob->flex().flex_grow = 0; knob->flex().flex_shrink = 0;
                 root->bindings.push_back(std::move(binding));
+                root->param_bindings.push_back(bind_parameter(*knob, store, ctl.id));
                 return std::move(knob);
             }
         }
@@ -336,6 +350,7 @@ inline std::unique_ptr<view::View> build_effect_editor(state::StateStore& store,
         toggle->set_label("");
         toggle->flex().preferred_width = 44.0f; toggle->flex().preferred_height = 24.0f;
         toggle->flex().flex_grow = 0; toggle->flex().flex_shrink = 0;
+        root->param_bindings.push_back(bind_parameter(*toggle, store, spec.bypass_id));
         bypass_row->add_child(std::move(toggle));
         bypass_row->add_child(label("Bypass", 13.0f, text, 80.0f, 18.0f));
         root->bindings.push_back(std::move(tbind));

@@ -12,7 +12,7 @@ pulp_add_plugin(RingMod
     PLUGIN_NAME       "Ring Mod"
     BUNDLE_ID         "com.pulp.examples.ringmod"
     MANUFACTURER      "Pulp Examples"
-    VERSION           "0.2.2"
+    VERSION           "0.2.3"
     CATEGORY          Effect
     PLUGIN_CODE       "PRng"
     MANUFACTURER_CODE "PlpX"
