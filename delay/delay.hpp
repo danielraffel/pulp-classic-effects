@@ -85,8 +85,10 @@ public:
             delay_init_ = false;
         }
 
-        const float mix = std::clamp(state().get_value(kDelayMix), 0.0f, 1.0f);
-        const float fb = std::clamp(state().get_value(kFeedback), 0.0f, 0.9f);
+        // Mix and Feedback are also smoothed per sample (below) so turning
+        // those knobs doesn't step the wet level / tail gain and click.
+        const float mix_target = std::clamp(state().get_value(kDelayMix), 0.0f, 1.0f);
+        const float fb_target = std::clamp(state().get_value(kFeedback), 0.0f, 0.9f);
         // Time parameter is in seconds. This is the *target* delay length: the
         // read position is smoothed toward it per sample (below) so turning the
         // Time knob glides the delay instead of stepping it once per block.
@@ -99,13 +101,22 @@ public:
         // constant; at steady state smoothed_delay_ == delay_target, so the
         // default sound is unchanged.
         const float smooth = 1.0f - std::exp(-1.0f / (kSmoothSecs * sample_rate_));
-        if (!delay_init_) { smoothed_delay_ = delay_target; delay_init_ = true; }
+        if (!delay_init_) {
+            smoothed_delay_ = delay_target;
+            smoothed_mix_ = mix_target;
+            smoothed_fb_ = fb_target;
+            delay_init_ = true;
+        }
 
         for (std::size_t i = 0; i < frames; ++i) {
-            // Advance the shared smoothed delay once per frame, before the
-            // per-channel taps, so every channel reads the same length.
+            // Advance the shared smoothed params once per frame, before the
+            // per-channel taps, so every channel reads the same values.
             smoothed_delay_ += smooth * (delay_target - smoothed_delay_);
+            smoothed_mix_ += smooth * (mix_target - smoothed_mix_);
+            smoothed_fb_ += smooth * (fb_target - smoothed_fb_);
             const float d = smoothed_delay_;
+            const float mix = smoothed_mix_;
+            const float fb = smoothed_fb_;
             for (std::size_t ch = 0; ch < channels; ++ch) {
                 auto in = input.channel(ch);
                 auto out = output.channel(ch);
@@ -135,7 +146,9 @@ private:
     float sample_rate_ = 48000.0f;
     int max_delay_ = 240004;
     float smoothed_delay_ = 0.0f;  // current (glided) delay length, in samples
-    bool delay_init_ = false;      // false → snap to target on the next frame
+    float smoothed_mix_ = 0.0f;    // glided wet/dry mix
+    float smoothed_fb_ = 0.0f;     // glided feedback gain
+    bool delay_init_ = false;      // false → snap to targets on the next frame
     std::array<signal::DelayLine, 8> lines_{};
 };
 

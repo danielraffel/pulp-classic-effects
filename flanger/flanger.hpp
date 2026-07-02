@@ -125,8 +125,10 @@ public:
         // steady state is unchanged.
         const float delay_s = state().get_value(kFlangerDelay);
         const float width_s = state().get_value(kFlangerWidth);
-        const float depth   = std::clamp(state().get_value(kFlangerDepth), 0.0f, 1.0f);
-        const float fb      = std::clamp(state().get_value(kFlangerFeedback), 0.0f, 0.5f);
+        // Depth / Feedback are smoothed per sample too (below) so sweeping them
+        // glides the wet level / tail gain instead of stepping and clicking.
+        const float depth_target = std::clamp(state().get_value(kFlangerDepth), 0.0f, 1.0f);
+        const float fb_target    = std::clamp(state().get_value(kFlangerFeedback), 0.0f, 0.5f);
         const float invert  = state().get_value(kFlangerInverted) >= 0.5f ? -1.0f : 1.0f;
         const float rate    = state().get_value(kFlangerRate);
         const int   wave    = static_cast<int>(std::lround(state().get_value(kFlangerWaveform)));
@@ -143,13 +145,20 @@ public:
         if (!delay_init_) {
             smoothed_delay_s_ = delay_s;
             smoothed_width_s_ = width_s;
+            smoothed_depth_ = depth_target;
+            smoothed_fb_ = fb_target;
             delay_init_ = true;
         }
 
         for (std::size_t i = 0; i < frames; ++i) {
-            // Glide the base Delay / Width once per frame, shared across channels.
+            // Glide the base Delay / Width / Depth / Feedback once per frame,
+            // shared across channels.
             smoothed_delay_s_ += smooth * (delay_s - smoothed_delay_s_);
             smoothed_width_s_ += smooth * (width_s - smoothed_width_s_);
+            smoothed_depth_ += smooth * (depth_target - smoothed_depth_);
+            smoothed_fb_ += smooth * (fb_target - smoothed_fb_);
+            const float depth = smoothed_depth_;
+            const float fb = smoothed_fb_;
             for (std::size_t ch = 0; ch < channels; ++ch) {
                 const float ph = (stereo && ch != 0) ? wrap01(phase_ + 0.25f) : phase_;
                 float d_samp = (smoothed_delay_s_ + smoothed_width_s_ * lfo(ph, wave)) * sample_rate_;
@@ -243,6 +252,8 @@ private:
     float phase_ = 0.0f;
     float smoothed_delay_s_ = 0.0f;  // glided base delay, in seconds
     float smoothed_width_s_ = 0.0f;  // glided sweep width, in seconds
+    float smoothed_depth_ = 0.0f;    // glided wet depth
+    float smoothed_fb_ = 0.0f;       // glided feedback gain
     bool delay_init_ = false;        // false → snap to targets on the next frame
     std::array<std::vector<float>, 8> lines_{};
 };
