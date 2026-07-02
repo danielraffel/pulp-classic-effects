@@ -12,7 +12,7 @@ pulp_add_plugin(Flanger
     PLUGIN_NAME       "Flanger"
     BUNDLE_ID         "com.pulp.examples.flanger"
     MANUFACTURER      "Pulp Examples"
-    VERSION           "0.2.3"
+    VERSION           "0.2.4"
     CATEGORY          Effect
     PLUGIN_CODE       "PFlg"
     MANUFACTURER_CODE "PlpX"

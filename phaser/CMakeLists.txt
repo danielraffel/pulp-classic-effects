@@ -12,7 +12,7 @@ pulp_add_plugin(Phaser
     PLUGIN_NAME       "Phaser"
     BUNDLE_ID         "com.pulp.examples.phaser"
     MANUFACTURER      "Pulp Examples"
-    VERSION           "0.2.3"
+    VERSION           "0.2.4"
     CATEGORY          Effect
     PLUGIN_CODE       "PPhs"
     MANUFACTURER_CODE "PlpX"

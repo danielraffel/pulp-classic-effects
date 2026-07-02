@@ -12,7 +12,7 @@ pulp_add_plugin(CompressorExpander
     PLUGIN_NAME       "Compressor"
     BUNDLE_ID         "com.pulp.examples.compressor-expander"
     MANUFACTURER      "Pulp Examples"
-    VERSION           "0.2.3"
+    VERSION           "0.2.4"
     CATEGORY          Effect
     PLUGIN_CODE       "PCxE"
     MANUFACTURER_CODE "PlpX"

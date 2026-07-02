@@ -12,7 +12,7 @@ pulp_add_plugin(PitchShift
     PLUGIN_NAME       "Pitch Shift"
     BUNDLE_ID         "com.pulp.examples.pitch-shift"
     MANUFACTURER      "Pulp Examples"
-    VERSION           "0.2.3"
+    VERSION           "0.2.4"
     CATEGORY          Effect
     PLUGIN_CODE       "PPit"
     MANUFACTURER_CODE "PlpX"

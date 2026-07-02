@@ -12,7 +12,7 @@ pulp_add_plugin(Robotization
     PLUGIN_NAME       "Robotization"
     BUNDLE_ID         "com.pulp.examples.robotization"
     MANUFACTURER      "Pulp Examples"
-    VERSION           "0.2.3"
+    VERSION           "0.2.4"
     CATEGORY          Effect
     PLUGIN_CODE       "PRbt"
     MANUFACTURER_CODE "PlpX"
