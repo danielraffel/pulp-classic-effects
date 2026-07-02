@@ -137,6 +137,48 @@ void setup(format::HeadlessHost& h, float shift, int fft_idx, int hop_idx, int w
 }
 }  // namespace
 
+// Changing the Hop / Window combo LIVE mid-stream must resync the phase-vocoder
+// streaming state cleanly: no NaN/blow-up, and the effect recovers to non-silent
+// output (the ring is cleared + re-primed rather than left stalled or clicking).
+TEST_CASE("Pitch shift: live Hop/Window change resyncs cleanly", "[pitchshift]") {
+    format::HeadlessHost h(create_pitch_shift);
+    setup(h, 5.0f, /*1024*/2, /*1/4*/1, /*Hann*/1);
+
+    const int block = 64;
+    const int frames = 48000;              // 1 s
+    const auto input = sine(0.5f, 220.0f, frames);
+    const int change_at = frames / 2;
+
+    std::vector<float> result(frames, 0.0f);
+    audio::Buffer<float> in(2, block), out(2, block);
+    int pos = 0;
+    bool changed = false;
+    while (pos < frames) {
+        const int n = std::min(block, frames - pos);
+        if (!changed && pos >= change_at) {
+            h.state().set_value(kPsHop, 2.0f);     // 1/4 -> 1/8 overlap
+            h.state().set_value(kPsWindow, 2.0f);  // Hann -> Hamming
+            changed = true;
+        }
+        for (int i = 0; i < n; ++i) { in.channel(0)[i] = input[pos + i]; in.channel(1)[i] = input[pos + i]; }
+        const float* ip[2] = {in.channel(0).data(), in.channel(1).data()};
+        float* op[2] = {out.channel(0).data(), out.channel(1).data()};
+        audio::BufferView<const float> iv(ip, 2, (std::size_t)n);
+        audio::BufferView<float> ov(op, 2, (std::size_t)n);
+        midi::MidiBuffer a, b;
+        h.process(ov, iv, a, b, format::ProcessContext{});
+        for (int i = 0; i < n; ++i) result[pos + i] = out.channel(0)[i];
+        pos += n;
+    }
+
+    for (float v : result) {
+        REQUIRE(std::isfinite(v));      // resync must not NaN/Inf
+        REQUIRE(std::fabs(v) < 4.0f);   // nor blow up
+    }
+    // A few FFT frames past the switch, output has re-primed to non-silent.
+    REQUIRE(rms_from(result, change_at + 8192) > 1e-3f);
+}
+
 TEST_CASE("Pitch shift up an octave halves the period (~2x frequency)", "[pitchshift]") {
     format::HeadlessHost h(create_pitch_shift);
     setup(h, 12.0f, /*1024*/2, /*1/8*/2, /*Hann*/1);

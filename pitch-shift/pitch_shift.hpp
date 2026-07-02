@@ -360,6 +360,22 @@ private:
                 build_pitch_window(window_type, fft_size, window);
                 window_scale = pitch_window_scale(window, overlap);
                 hop_size = fft_size / std::max(1, overlap);
+                // A live Hop/Window change alters the analysis/overlap geometry.
+                // A size change already zeroed the buffers + reset the read/write
+                // cursors above; but an overlap/window-only change would otherwise
+                // jump output_write_pos while the ring still holds the previous
+                // overlap-add tail and output_read_pos/phase are mid-stream — an
+                // audible click. Resync the streaming state so the switch is clean.
+                if (!size_changed) {
+                    for (auto& b : input_buffer)  std::fill(b.begin(), b.end(), 0.0f);
+                    for (auto& b : output_buffer) std::fill(b.begin(), b.end(), 0.0f);
+                    for (auto& b : input_phase)   std::fill(b.begin(), b.end(), 0.0f);
+                    for (auto& b : output_phase)  std::fill(b.begin(), b.end(), 0.0f);
+                    input_write_pos = 0;
+                    output_read_pos = 0;
+                    samples_since_last_fft = 0;
+                    need_phase_reset = true;
+                }
                 output_write_pos = std::min(hop_size, std::max(1, output_len) - 1);
             }
         }
