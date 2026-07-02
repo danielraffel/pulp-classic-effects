@@ -90,6 +90,7 @@ public:
                 std::fill(line.begin(), line.end(), 0.0f);
             write_pos_ = 0;
             lfo_phase_ = 0.0f;
+            width_init_ = false;  // re-snap the smoothed depth on transport reset
         }
 
         const float width_secs = std::clamp(state().get_value(kVibWidthSecs), 0.0f, 0.05f);
@@ -99,16 +100,23 @@ public:
         const auto  interp     = static_cast<VibratoInterp>(
             std::clamp(static_cast<int>(state().get_value(kVibInterp) + 0.5f), 0, 2));
 
-        // Peak delay in samples, capped so the read stays inside the buffer.
-        float max_delay = width_secs * sample_rate_;
-        max_delay = std::clamp(max_delay, 0.0f, static_cast<float>(buffer_len_ - 3));
+        // Peak delay in samples, capped so the read stays inside the buffer. This
+        // is the TARGET; the actual depth is glided toward it per sample (below)
+        // so turning the Width knob sweeps the modulation depth smoothly instead
+        // of stepping the read position once per block (which distorts/clicks).
+        float max_delay_target = width_secs * sample_rate_;
+        max_delay_target = std::clamp(max_delay_target, 0.0f,
+                                      static_cast<float>(buffer_len_ - 3));
+        const float smooth = 1.0f - std::exp(-1.0f / (0.03f * sample_rate_));
+        if (!width_init_) { smoothed_max_delay_ = max_delay_target; width_init_ = true; }
         const float phase_inc = rate_hz / sample_rate_;
 
         // One LFO and one write cursor drive every channel in phase. Write the
         // freshest input first, then read back at the swept (fractional) delay.
         for (std::size_t i = 0; i < frames; ++i) {
+            smoothed_max_delay_ += smooth * (max_delay_target - smoothed_max_delay_);
             const float m = lfo_unipolar(lfo_phase_, wave);   // 0..1
-            const float delay = max_delay * m;                 // 0..max_delay samples
+            const float delay = smoothed_max_delay_ * m;       // 0..max_delay samples
             // Read position measured backwards from the write cursor.
             float read_pos = static_cast<float>(write_pos_) - delay;
             while (read_pos < 0.0f) read_pos += static_cast<float>(buffer_len_);
@@ -188,6 +196,8 @@ private:
     int buffer_len_ = 2404;
     int write_pos_ = 0;
     float lfo_phase_ = 0.0f;
+    float smoothed_max_delay_ = 0.0f;  // glided modulation depth, in samples
+    bool width_init_ = false;          // false → snap the depth to target next frame
     std::array<std::vector<float>, 8> lines_{};
 };
 

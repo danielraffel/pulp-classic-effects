@@ -12,7 +12,7 @@ pulp_add_plugin(Panning
     PLUGIN_NAME       "Panning"
     BUNDLE_ID         "com.pulp.examples.panning"
     MANUFACTURER      "Pulp Examples"
-    VERSION           "0.2.4"
+    VERSION           "0.2.5"
     CATEGORY          Effect
     PLUGIN_CODE       "PPan"
     MANUFACTURER_CODE "PlpX"

@@ -12,7 +12,7 @@ pulp_add_plugin(Vibrato
     PLUGIN_NAME       "Vibrato"
     BUNDLE_ID         "com.pulp.examples.vibrato"
     MANUFACTURER      "Pulp Examples"
-    VERSION           "0.2.4"
+    VERSION           "0.2.5"
     CATEGORY          Effect
     PLUGIN_CODE       "PVib"
     MANUFACTURER_CODE "PlpX"

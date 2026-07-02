@@ -12,7 +12,7 @@ pulp_add_plugin(Chorus
     PLUGIN_NAME       "Chorus"
     BUNDLE_ID         "com.pulp.examples.chorus"
     MANUFACTURER      "Pulp Examples"
-    VERSION           "0.2.4"
+    VERSION           "0.2.5"
     CATEGORY          Effect
     PLUGIN_CODE       "PCho"
     MANUFACTURER_CODE "PlpX"

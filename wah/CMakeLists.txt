@@ -12,7 +12,7 @@ pulp_add_plugin(Wah
     PLUGIN_NAME       "Wah-Wah"
     BUNDLE_ID         "com.pulp.examples.wah"
     MANUFACTURER      "Pulp Examples"
-    VERSION           "0.2.4"
+    VERSION           "0.2.5"
     CATEGORY          Effect
     PLUGIN_CODE       "PWah"
     MANUFACTURER_CODE "PlpX"
