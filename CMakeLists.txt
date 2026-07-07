@@ -8,12 +8,29 @@ project(pulp-classic-effects LANGUAGES CXX)
 #   cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
 #         -DCMAKE_PREFIX_PATH=/path/to/pulp/install
 #
-# find_package(Pulp) provides pulp::format, pulp::signal, the pulp_add_plugin()
-# helper, and a bundled Catch2 for the tests.
+# find_package(Pulp) provides pulp::format, pulp::signal, and the
+# pulp_add_plugin() helper. The repo fetches its own Catch2 when tests are
+# enabled so it works against an installed SDK.
 find_package(Pulp CONFIG REQUIRED)
 
 option(PULP_BUILD_TESTS "Build the example tests" ON)
-enable_testing()
+if(PULP_BUILD_TESTS)
+    include(FetchContent)
+    if(NOT TARGET Catch2::Catch2WithMain)
+        FetchContent_Declare(
+            Catch2
+            GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+            GIT_TAG        v3.7.1
+            GIT_SHALLOW    TRUE
+        )
+        FetchContent_MakeAvailable(Catch2)
+    endif()
+    if(DEFINED catch2_SOURCE_DIR AND EXISTS "${catch2_SOURCE_DIR}/extras/Catch.cmake")
+        list(APPEND CMAKE_MODULE_PATH "${catch2_SOURCE_DIR}/extras")
+    endif()
+    include(Catch)
+    enable_testing()
+endif()
 
 add_subdirectory(tremolo)
 add_subdirectory(ring-mod)
