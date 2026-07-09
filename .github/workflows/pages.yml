@@ -62,6 +62,9 @@ env:
   # choc back to Tracktion/choc upstream, update these two lines to match.
   CHOC_REPO: danielraffel/choc
   CHOC_REF: df148a41a6bc9cbd67727532c4d5c9d8aa6d5d60
+  # Absolute base URL of the deployed site. gen-og.mjs bakes it into every page's
+  # og:url / og:image; build-web.sh reads it from the environment.
+  SITE_BASE: https://www.generouscorp.com/pulp-classic-effects
 
 # Permissions required by actions/deploy-pages.
 permissions:
@@ -80,6 +83,11 @@ jobs:
     steps:
       - name: Checkout classic effects
         uses: actions/checkout@v4
+
+      - name: Set up Node (for gen-og + headless render)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
 
       - name: Shallow-clone pulp source (pinned)
         run: |
@@ -105,11 +113,29 @@ jobs:
         with:
           version: 6.0.2
 
+      - name: Set up Chrome (headless OG render)
+        id: chrome
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+
       - name: Build web demos
         env:
           PULP_ROOT: ${{ github.workspace }}/pulp-src
           CHOC_INCLUDE: ${{ github.workspace }}/choc-src
         run: bash scripts/build-web.sh
+
+      # Screenshot each started editor into docs/<plugin>/og.png, then re-run
+      # gen-og so the now-present images become og:image +
+      # twitter:card=summary_large_image on every page. gen-og already ran once
+      # inside build-web.sh (text-only cards); this pass upgrades them.
+      - name: Render OG preview images (headless Chrome)
+        env:
+          CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
+        run: |
+          npm install --no-save playwright-core
+          node web/gen-og-images.mjs docs
+          node web/gen-og.mjs "$SITE_BASE" docs
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
