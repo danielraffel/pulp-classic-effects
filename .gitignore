@@ -10,3 +10,6 @@ compile_commands.json
 web/build/
 docs/
 _site/
+
+# playwright-core is installed on demand for the headless OG render (CI + local).
+node_modules/

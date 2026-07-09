@@ -30,6 +30,9 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 PULP_ROOT="${1:-${PULP_ROOT:-}}"
 CHOC_INCLUDE="${2:-${CHOC_INCLUDE:-${PULP_WAM_CHOC_INCLUDE:-}}}"
 OUT_DIR="${3:-${OUT_DIR:-${REPO_ROOT}/docs}}"
+# Absolute base URL of the deployed site — gen-og.mjs bakes it into every page's
+# og:url / og:image. Per-repo default; override with SITE_BASE=... (CI does).
+SITE_BASE="${SITE_BASE:-https://www.generouscorp.com/pulp-classic-effects}"
 
 if [[ -z "${PULP_ROOT}" ]]; then
     echo "error: PULP_ROOT is required (a pulp SOURCE checkout)." >&2
@@ -188,6 +191,19 @@ if [[ -f "${PLAYER_JS}" ]]; then
         perl -0pi -e "s{(['\"])((?:\\.\\.?/)*player/pulp-player\\.js)(?:\\?v=[a-f0-9]+)?\\1}{\$1\$2?v=${PLAYER_HASH}\$1}g" "${page}"
     done
     echo "==> player import stamped ?v=${PLAYER_HASH}"
+fi
+
+# --- Bake Open Graph / Twitter meta into the deployed pages -------------------
+# gen-og.mjs rewrites each assembled page's <head> with og:/twitter: tags from
+# the gallery's `plugins` array, and — when a <dir>/og.png exists (CI renders
+# them with web/gen-og-images.mjs) — emits og:image + twitter:card. Running it
+# HERE, against OUT_DIR, guarantees the deployed docs/ always carry current tags
+# (previously gen-og only ran when a human invoked it, so tags went stale). It is
+# idempotent and re-runs cleanly after the CI screenshot step adds the images.
+if command -v node >/dev/null 2>&1; then
+    node "${REPO_ROOT}/web/gen-og.mjs" "${SITE_BASE}" "${OUT_DIR}"
+else
+    echo "warn: node not on PATH — skipping gen-og (OG meta will be stale)." >&2
 fi
 
 echo
