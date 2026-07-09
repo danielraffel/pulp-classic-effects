@@ -203,7 +203,20 @@ function injectStyles() {
     .pp-top{margin:14px 12px 0}
     #panel{margin:10px 8px 32px;padding:18px 12px 44px;border-radius:12px}
     #params{grid-template-columns:repeat(auto-fit,110px);column-gap:8px}
-  }`;
+  }
+
+  /* Mobile touch hygiene — the plugin UI is a control surface, not a document
+     (this is why the cmajor demos disable selection too). On iOS a long-press on
+     a knob label or a key was popping the text-selection "Copy · Find Selection"
+     callout, and a quick double-tap on a control was zooming the page. Suppress
+     BOTH on the UI chrome, while keeping: pinch-zoom (accessibility) + scroll
+     (touch-action:manipulation disables only the non-standard double-tap zoom),
+     and selection where a value is genuinely worth copying (SysEx echo, MIDI
+     log) or editing (the memo / hex fields). */
+  body{-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+  #panel,.pp-top{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+  #panel textarea,#panel input[type=text],#panel .pp-recv,#panel #log{
+    -webkit-user-select:text;user-select:text;-webkit-touch-callout:default}`;
   const el = document.createElement("style");
   el.textContent = css;
   document.head.appendChild(el);
