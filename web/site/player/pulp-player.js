@@ -354,6 +354,59 @@ function buildMemoPlugin(text) {
   return out;
 }
 
+// ————————————————————————————————————————————————— host adapter (WAM)
+// The demo shell is host-agnostic: it never talks to a plugin backend directly,
+// only to a small "host adapter" object with the interface below. Today the one
+// implementation wraps a Pulp WAM instance (wam-plugin.js); a future WebCLAP —
+// or any other backend — just supplies another factory of the same shape. The
+// `import PulpWAM` above stays, but it now lives ENTIRELY behind this seam:
+// every host call the shell makes goes through `adapter.*` (held in S.wam and
+// the voice pool), and the word `PulpWAM` appears nowhere in the shell body.
+//
+// Adapter contract (complete — nothing the shell touches lives outside it):
+//   descriptor                          live plugin descriptor object
+//   audioNode                           the plugin's AudioNode (graph wiring)
+//   getParameterInfo()   → Promise      parameter metadata array
+//   setParameterValue(id, value)        set a parameter
+//   getParameterValue(id) → Promise     read a parameter
+//   scheduleMidi(status, d1, d2, off)   send a raw MIDI message
+//   onMidiOut      (assignable handler) plugin-produced MIDI (events, meta)
+//   onParamsChanged (assignable)        plugin self-updates (values, params)
+//   sendSysex(bytes, offset?)           send a SysEx blob
+//   getState()   → Promise              opaque host state blob (bytes)
+//   setState(bytes)                     restore an opaque host state blob
+//   createSecondary(urls) → Promise<adapter>   another instance on the SAME ctx
+//                                       (the chained-synth voice pool voices)
+//   destroy()                           release the underlying instance
+//
+// Factory: createWamAdapter(ctx, {dsp, processor}) → Promise<adapter>.
+function createWamAdapter(ctx, urls) {
+  return PulpWAM
+    .createInstance(ctx, null, { dsp: urls.dsp, processor: urls.processor })
+    .then((wam) => wrapWamInstance(ctx, wam));
+}
+function wrapWamInstance(ctx, wam) {
+  return {
+    get descriptor() { return wam.descriptor; },
+    get audioNode() { return wam.audioNode; },
+    getParameterInfo: () => wam.getParameterInfo(),
+    setParameterValue: (id, value) => wam.setParameterValue(id, value),
+    getParameterValue: (id) => wam.getParameterValue(id),
+    scheduleMidi: (status, d1, d2, offset = 0) => wam.scheduleMidi(status, d1, d2, offset),
+    sendSysex: (bytes, offset = 0) => wam.sendSysex(bytes, offset),
+    getState: () => wam.getState(),
+    setState: (bytes) => wam.setState(bytes),
+    // onMidiOut / onParamsChanged are handler PROPERTIES the instance reads back
+    // (`this.onMidiOut?.(…)`), so forward assignment straight through.
+    get onMidiOut() { return wam.onMidiOut; },
+    set onMidiOut(fn) { wam.onMidiOut = fn; },
+    get onParamsChanged() { return wam.onParamsChanged; },
+    set onParamsChanged(fn) { wam.onParamsChanged = fn; },
+    createSecondary: (secondaryUrls) => createWamAdapter(ctx, secondaryUrls),
+    destroy: () => wam.destroy(),
+  };
+}
+
 // ————————————————————————————————————————————————————————————————— main
 export async function mountDemo(opts) {
   injectStyles();
@@ -377,6 +430,11 @@ export async function mountDemo(opts) {
     : "";
 
   document.title = `${title} — Pulp web demo`;
+
+  // Host-adapter seam. The shell drives ONLY this factory (and the adapter it
+  // returns), never a backend directly. Defaults to the WAM adapter; a test or
+  // an alternate ABI passes its own `opts.createAdapter(ctx, urls) → adapter`.
+  const makeAdapter = opts.createAdapter || createWamAdapter;
 
   const coarse = matchMedia("(hover: none) and (pointer: coarse)").matches;
   const startWord = coarse ? "Tap to start" : "Click to start";
@@ -779,11 +837,23 @@ export async function mountDemo(opts) {
     const sel = $("#src");
     sel.addEventListener("change", () => setSource(sel.value));
   }
+  // Safari's Web Audio AudioSession (navigator.audioSession) gates mic capture:
+  // the default "playback" category REJECTS getUserMedia with InvalidStateError
+  // ("AudioSession category is not compatible with audio capture"). Capture needs
+  // "play-and-record"; playback-only should return to "playback" so iOS routes to
+  // the main speaker (play-and-record can duck / route to the earpiece). No-op on
+  // Chrome/Firefox, which don't implement the API.
+  function setAudioSession(type) {
+    try { if (navigator.audioSession) navigator.audioSession.type = type; } catch {}
+  }
   function stopSource() {
     if (S.loopSource) { try { S.loopSource.stop(); } catch {} S.loopSource.disconnect(); S.loopSource = null; }
     if (S.micNode) { S.micNode.disconnect(); S.micNode = null; }
     if (S.micSink) { try { S.micSink.pause(); } catch {} S.micSink.srcObject = null; S.micSink = null; }
-    if (S.micStream) { S.micStream.getTracks().forEach((t) => t.stop()); S.micStream = null; }
+    if (S.micStream) {
+      S.micStream.getTracks().forEach((t) => t.stop()); S.micStream = null;
+      setAudioSession("playback");   // leaving mic → restore full-speaker playback
+    }
   }
   async function setSource(kind) {
     stopSource();
@@ -797,10 +867,13 @@ export async function mountDemo(opts) {
       status(`${S.wam.descriptor.name} — loop running`);
     } else if (kind === "mic") {
       try {
+        // Safari: the audio session must allow capture BEFORE getUserMedia, or it
+        // rejects with InvalidStateError. Must run in the same user gesture.
+        setAudioSession("play-and-record");
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: { echoCancellation: false, autoGainControl: false, noiseSuppression: false } });
         S.micStream = stream;
-        // Safari quirk 1: getUserMedia can leave the AudioContext suspended.
+        // getUserMedia can leave the AudioContext suspended (Safari).
         if (S.ctx.state !== "running") { try { await S.ctx.resume(); } catch {} }
         // Safari quirk 2: a MediaStreamAudioSourceNode outputs SILENCE unless the
         // stream is also consumed by a playing media element. Attach it to a
@@ -966,8 +1039,7 @@ export async function mountDemo(opts) {
         // one-time spin-up) so a chord plays instantly rather than dropping the
         // first note on each channel while its voice loads.
         S.pool = await Promise.all(Array.from({ length: POLY_VOICES }, async () => {
-          const synth = await PulpWAM.createInstance(S.ctx, null,
-            { dsp: opts.synthUrls.dsp, processor: opts.synthUrls.processor });
+          const synth = await S.wam.createSecondary(opts.synthUrls);
           synth.audioNode.connect(S.analyser);
           return { synth, ch: null, t: 0 };
         }));
@@ -1210,7 +1282,7 @@ function connectOutput(S) {
     unlock.connect(S.ctx.destination); unlock.start(0);
     try { navigator.audioSession.type = "playback"; } catch {}
 
-    S.wam = await PulpWAM.createInstance(S.ctx, null, { dsp: opts.dspUrl, processor: opts.processorUrl });
+    S.wam = await makeAdapter(S.ctx, { dsp: opts.dspUrl, processor: opts.processorUrl });
     if (S.ctx.state !== "running") await S.ctx.resume();
 
     const params = await waitForParams(S.wam);

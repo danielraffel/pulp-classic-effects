@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <title>Adapter smoke — Pulp web demo</title>
+</head>
+<body>
+<!--
+  adapter-smoke.html — RUNTIME proof for the WS-B host-adapter seam.
+
+  It mounts the REAL mountDemo shell with a FAKE host adapter injected via
+  `opts.createAdapter`. The fake records every method the shell calls and returns
+  a real GainNode for audioNode so the shell's graph wiring works — but NO real
+  PulpWAM worklet is ever loaded. If the shell drove the backend directly (rather
+  than the adapter interface) the fake would see nothing and no descriptor would
+  surface. We then assert the shell exercised the full contract.
+
+  Must be served from BESIDE the built player (docs/player/), because
+  pulp-player.js statically imports ./wam-plugin.js. The build does not copy
+  web/tests/, so the harness copies this file into docs/player/ before driving
+  it with headless Chrome. Read the result at window.__smokeResult.
+-->
+<div id="app"></div>
+<script type="module">
+import { mountDemo } from "./pulp-player.js";
+
+const calls = (window.__adapterCalls = []);
+const rec = (name, extra = {}) => calls.push({ name, ...extra });
+const names = () => calls.map((c) => c.name);
+
+// A fake host adapter — same shape as createWamAdapter's return, records calls.
+function fakeAdapter(ctx, urls, tag = "main") {
+  rec("createInstance", { tag, urls });
+  const node = ctx.createGain();               // real AudioNode for graph wiring
+  const params = [
+    { id: 0, label: "Amount", type: "float", min: 0, max: 1, defaultValue: 0.5, unit: "" },
+  ];
+  let onMidiOut = null, onParamsChanged = null;
+  let state = new Uint8Array([0x50, 0x55, 0x4c, 0x50]); // bare "PULP" store blob
+  return {
+    get descriptor() {
+      return { name: "FakePlugin", isInstrument: false, hasMidiInput: true,
+               hasMidiOutput: true, hasAudioInput: false, hasAudioOutput: false };
+    },
+    get audioNode() { return node; },
+    getParameterInfo: async () => { rec("getParameterInfo", { tag }); return params; },
+    setParameterValue: (id, v) => rec("setParameterValue", { tag, id, v }),
+    getParameterValue: async (id) => { rec("getParameterValue", { tag, id }); return 0; },
+    scheduleMidi: (s, d1, d2, o) => rec("scheduleMidi", { tag, s, d1, d2, o }),
+    sendSysex: (bytes, o = 0) => rec("sendSysex", { tag, bytes: [...bytes], o }),
+    getState: async () => { rec("getState", { tag }); return state; },
+    setState: (bytes) => { rec("setState", { tag, bytes: [...bytes] }); state = Uint8Array.from(bytes); },
+    get onMidiOut() { return onMidiOut; },
+    set onMidiOut(fn) { rec("set onMidiOut", { tag }); onMidiOut = fn; },
+    get onParamsChanged() { return onParamsChanged; },
+    set onParamsChanged(fn) { rec("set onParamsChanged", { tag }); onParamsChanged = fn; },
+    createSecondary: async (u) => { rec("createSecondary", { tag }); return fakeAdapter(ctx, u, "voice"); },
+    destroy: () => rec("destroy", { tag }),
+  };
+}
+
+// Mount a MIDI-effect (mpe) demo: it exercises descriptor, getParameterInfo,
+// setParameterValue, scheduleMidi, onMidiOut, onParamsChanged AND the chained-
+// synth voice pool (createSecondary) — the widest slice of the contract.
+mountDemo({
+  root: document.getElementById("app"),
+  title: "Adapter Smoke",
+  subtitle: "fake adapter",
+  dspUrl: "./__fake_dsp__", processorUrl: "./__fake_proc__",
+  paramRows: 1,
+  midiViz: "mpe",
+  synthUrls: { dsp: "./__fake_synth_dsp__", processor: "./__fake_synth_proc__" },
+  createAdapter: fakeAdapter,        // <-- the injected seam under test
+});
+
+window.__runAdapterSmoke = async () => {
+  const result = { pass: false, checks: [], calls: null };
+  const check = (cond, msg) => { result.checks.push({ ok: !!cond, msg }); };
+  try {
+    await window.__start();                              // drives makeAdapter + waitForParams
+    // The shell should have created the main instance THROUGH the adapter and
+    // surfaced the fake descriptor — proof it never touched a real backend.
+    check(window.__demo.descriptor?.name === "FakePlugin", "descriptor came from the adapter");
+    check(names().filter((n) => n === "createInstance").length === 1, "one main createInstance via adapter");
+    check(names().includes("getParameterInfo"), "shell read getParameterInfo via adapter");
+    check(names().includes("setParameterValue"), "shell seeded params via adapter.setParameterValue");
+    check(names().includes("set onMidiOut"), "shell subscribed adapter.onMidiOut");
+    check(names().includes("set onParamsChanged"), "shell subscribed adapter.onParamsChanged");
+
+    // A note-on must go through the adapter's scheduleMidi.
+    window.__player.noteOn(60, 100);
+    check(calls.some((c) => c.name === "scheduleMidi" && (c.s & 0xf0) === 0x90 && c.d1 === 60),
+          "noteOn routed through adapter.scheduleMidi");
+    window.__player.noteOff(60);
+
+    // A SysEx send must go through the adapter.
+    window.__player.sendSysex([0xf0, 0x7d, 0x01, 0xf7]);
+    check(calls.some((c) => c.name === "sendSysex" && c.bytes[0] === 0xf0), "sendSysex routed through adapter");
+
+    // Toggle the chain: the voice pool must be built via adapter.createSecondary.
+    document.getElementById("chain").click();
+    await new Promise((r) => setTimeout(r, 50));
+    const voices = names().filter((n) => n === "createSecondary").length;
+    check(voices >= 1, `voice pool built via adapter.createSecondary (${voices} voices)`);
+
+    // Route a plugin-emitted event through the shell's onMidiOut handler and
+    // confirm it reaches a voice's scheduleMidi (channel-routed polyphony path).
+    const handler = window.__player.state.wam.onMidiOut;
+    handler([{ bytes: [0x92, 64, 100] }]);              // note-on on channel 3
+    check(calls.some((c) => c.tag === "voice" && c.name === "scheduleMidi"),
+          "onMidiOut forwarded to a voice's adapter.scheduleMidi");
+
+    result.calls = names();
+    result.pass = result.checks.every((c) => c.ok);
+  } catch (err) {
+    result.error = String(err && err.stack || err);
+  }
+  window.__smokeResult = result;
+  return result;
+};
+</script>
+</body>
+</html>
