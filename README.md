@@ -16,23 +16,23 @@ out the SDK contract surface.
 Effects are listed alphabetically. Each parameter set, name, and editor layout
 mirrors the corresponding Reiss & McPherson / Juan Gil reference effect.
 
-| Effect | Editor | Notes |
-|---|---|---|
-| Chorus | <img src="screenshots/chorus.png" width="220"> | Multi-voice (2–5) LFO-swept delay ensemble — delay/width/depth, waveform + interpolation, stereo spread |
-| Compressor | <img src="screenshots/compressor-expander.png" width="220"> | Stereo-linked dynamics — Compressor/Expander mode, threshold/ratio/attack/release/makeup |
-| Delay | <img src="screenshots/delay.png" width="220"> | Feedback delay line — time, feedback, wet/dry mix |
-| Distortion | <img src="screenshots/distortion.png" width="220"> | Five waveshapers (hard/soft clip, exponential, full/half rectify) with input/output gain + tone tilt |
-| Flanger | <img src="screenshots/flanger.png" width="220"> | Short LFO-swept delay with feedback + inverted comb — waveform/interpolation, stereo |
-| Panning | <img src="screenshots/panning.png" width="220"> | Static stereo panner — equal-power+precedence or ITD+ILD binaural law, pan position |
-| Parametric EQ | <img src="screenshots/parametric-eq.png" width="220"> | Single-band biquad with selectable type (LP/HP/shelves/band-pass/-stop/peaking), freq/Q/gain |
-| Phaser | <img src="screenshots/phaser.png" width="220"> | 2–10 cascaded all-pass stages swept by an LFO — depth/feedback, min freq + sweep width, stereo |
-| Ping-Pong Delay | <img src="screenshots/ping-pong.png" width="220"> | Stereo cross-coupled delay with L/R balance — echoes bounce side to side as they decay |
-| Pitch Shift | <img src="screenshots/pitch-shift.png" width="220"> | Phase-vocoder pitch shift (±12 st) with selectable FFT size / hop / window |
-| Ring Mod | <img src="screenshots/ring-mod.png" width="220"> | Carrier ring modulation — depth, carrier frequency, selectable carrier waveform |
-| Robotization | <img src="screenshots/robotization.png" width="220"> | STFT phase manipulation — pass-through / robotization / whisperization, FFT size/hop/window |
-| Tremolo | <img src="screenshots/tremolo.png" width="220"> | Periodic amplitude modulation — depth, rate, six LFO waveforms |
-| Vibrato | <img src="screenshots/vibrato.png" width="220"> | LFO-swept fractional delay (pitch modulation) — width, rate, waveform, interpolation |
-| Wah-Wah | <img src="screenshots/wah.png" width="220"> | Resonant SVF (res. low-pass / band-pass / peaking) swept manually or by LFO + envelope, with Q/gain |
+| Effect | Editor | Demo | Notes |
+|---|---|---|---|
+| Chorus | <a href="https://danielraffel.github.io/pulp-classic-effects/chorus/"><img src="screenshots/chorus.png" width="220"></a> | [▶ Live demo](https://danielraffel.github.io/pulp-classic-effects/chorus/) | Multi-voice (2–5) LFO-swept delay ensemble — delay/width/depth, waveform + interpolation, stereo spread |
+| Compressor | <a href="https://danielraffel.github.io/pulp-classic-effects/compressor-expander/"><img src="screenshots/compressor-expander.png" width="220"></a> | [▶ Live demo](https://danielraffel.github.io/pulp-classic-effects/compressor-expander/) | Stereo-linked dynamics — Compressor/Expander mode, threshold/ratio/attack/release/makeup |
+| Delay | <a href="https://danielraffel.github.io/pulp-classic-effects/delay/"><img src="screenshots/delay.png" width="220"></a> | [▶ Live demo](https://danielraffel.github.io/pulp-classic-effects/delay/) | Feedback delay line — time, feedback, wet/dry mix |
+| Distortion | <a href="https://danielraffel.github.io/pulp-classic-effects/distortion/"><img src="screenshots/distortion.png" width="220"></a> | [▶ Live demo](https://danielraffel.github.io/pulp-classic-effects/distortion/) | Five waveshapers (hard/soft clip, exponential, full/half rectify) with input/output gain + tone tilt |
+| Flanger | <a href="https://danielraffel.github.io/pulp-classic-effects/flanger/"><img src="screenshots/flanger.png" width="220"></a> | [▶ Live demo](https://danielraffel.github.io/pulp-classic-effects/flanger/) | Short LFO-swept delay with feedback + inverted comb — waveform/interpolation, stereo |
+| Panning | <a href="https://danielraffel.github.io/pulp-classic-effects/panning/"><img src="screenshots/panning.png" width="220"></a> | [▶ Live demo](https://danielraffel.github.io/pulp-classic-effects/panning/) | Static stereo panner — equal-power+precedence or ITD+ILD binaural law, pan position |
+| Parametric EQ | <a href="https://danielraffel.github.io/pulp-classic-effects/parametric-eq/"><img src="screenshots/parametric-eq.png" width="220"></a> | [▶ Live demo](https://danielraffel.github.io/pulp-classic-effects/parametric-eq/) | Single-band biquad with selectable type (LP/HP/shelves/band-pass/-stop/peaking), freq/Q/gain |
+| Phaser | <a href="https://danielraffel.github.io/pulp-classic-effects/phaser/"><img src="screenshots/phaser.png" width="220"></a> | [▶ Live demo](https://danielraffel.github.io/pulp-classic-effects/phaser/) | 2–10 cascaded all-pass stages swept by an LFO — depth/feedback, min freq + sweep width, stereo |
+| Ping-Pong Delay | <a href="https://danielraffel.github.io/pulp-classic-effects/ping-pong/"><img src="screenshots/ping-pong.png" width="220"></a> | [▶ Live demo](https://danielraffel.github.io/pulp-classic-effects/ping-pong/) | Stereo cross-coupled delay with L/R balance — echoes bounce side to side as they decay |
+| Pitch Shift | <a href="https://danielraffel.github.io/pulp-classic-effects/pitch-shift/"><img src="screenshots/pitch-shift.png" width="220"></a> | [▶ Live demo](https://danielraffel.github.io/pulp-classic-effects/pitch-shift/) | Phase-vocoder pitch shift (±12 st) with selectable FFT size / hop / window |
+| Ring Mod | <a href="https://danielraffel.github.io/pulp-classic-effects/ring-mod/"><img src="screenshots/ring-mod.png" width="220"></a> | [▶ Live demo](https://danielraffel.github.io/pulp-classic-effects/ring-mod/) | Carrier ring modulation — depth, carrier frequency, selectable carrier waveform |
+| Robotization | <a href="https://danielraffel.github.io/pulp-classic-effects/robotization/"><img src="screenshots/robotization.png" width="220"></a> | [▶ Live demo](https://danielraffel.github.io/pulp-classic-effects/robotization/) | STFT phase manipulation — pass-through / robotization / whisperization, FFT size/hop/window |
+| Tremolo | <a href="https://danielraffel.github.io/pulp-classic-effects/tremolo/"><img src="screenshots/tremolo.png" width="220"></a> | [▶ Live demo](https://danielraffel.github.io/pulp-classic-effects/tremolo/) | Periodic amplitude modulation — depth, rate, six LFO waveforms |
+| Vibrato | <a href="https://danielraffel.github.io/pulp-classic-effects/vibrato/"><img src="screenshots/vibrato.png" width="220"></a> | [▶ Live demo](https://danielraffel.github.io/pulp-classic-effects/vibrato/) | LFO-swept fractional delay (pitch modulation) — width, rate, waveform, interpolation |
+| Wah-Wah | <a href="https://danielraffel.github.io/pulp-classic-effects/wah/"><img src="screenshots/wah.png" width="220"></a> | [▶ Live demo](https://danielraffel.github.io/pulp-classic-effects/wah/) | Resonant SVF (res. low-pass / band-pass / peaking) swept manually or by LFO + envelope, with Q/gain |
 
 Each effect also ships a dark **Ink & Signal** editor (see `*/*_editor.hpp` and
 `test_editors.cpp`). Companion non-effect examples (a MIDI utility, a minimal
