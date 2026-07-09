@@ -1,0 +1,13 @@
+<!doctype html>
+<meta charset="utf-8">
+<div id="app"></div>
+<script type="module">
+import { mountDemo } from "../player/pulp-player.js";
+mountDemo({
+  root: document.getElementById("app"),
+  title: "Panning",
+  subtitle: "Moves the sound between the left and right speakers.",
+  dspUrl: "./wam-dsp.js", processorUrl: "./wam-processor.js",
+  mode: "audio-effect", paramRows: 1,
+});
+</script>

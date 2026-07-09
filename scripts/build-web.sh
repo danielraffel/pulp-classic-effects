@@ -105,6 +105,13 @@ DEMOS=(
 rm -rf "${OUT_DIR}"
 mkdir -p "${OUT_DIR}/player"
 
+# The authored site — gallery + one page per effect + the <pulp-demo> player and
+# its canvas widgets — lives in web/site/ and is committed. Everything else in
+# docs/ is generated below. The demo folder names in web/site/ must match the
+# DEMOS mapping so a page finds its own wam-dsp.js as a sibling; the check after
+# the loop enforces that rather than trusting it.
+cp -R "${REPO_ROOT}/web/site/." "${OUT_DIR}/"
+
 # The shared main-thread WAM host is served ONCE at player/wam-plugin.js. It is
 # loaded by the site page and told each demo's dsp+processor URLs, so it does not
 # need to sit next to the DSP.
@@ -143,6 +150,28 @@ for entry in "${DEMOS[@]}"; do
     cp "${WASM_SRC}/wam-processor.js" "${dest}/wam-processor.js"
     cp "${WASM_SRC}/wam-runtime.mjs"  "${dest}/wam-runtime.mjs"
 done
+
+# Every effect folder must carry BOTH its generated DSP and its authored page. A
+# rename on either side would otherwise ship a gallery whose links 404, or a page
+# whose sibling ./wam-dsp.js is missing — both only visible in a browser, late.
+missing=0
+for entry in "${DEMOS[@]}"; do
+    folder="${entry##*:}"
+    for required in "${OUT_DIR}/${folder}/index.html" "${OUT_DIR}/${folder}/wam-dsp.js"; do
+        if [[ ! -f "${required}" ]]; then
+            echo "error: ${required#"${OUT_DIR}/"} is missing." >&2
+            missing=1
+        fi
+    done
+done
+if [[ ! -f "${OUT_DIR}/index.html" ]]; then
+    echo "error: gallery index.html is missing (web/site/index.html not copied?)." >&2
+    missing=1
+fi
+if [[ "${missing}" -ne 0 ]]; then
+    echo "error: web/site/ folders must match the DEMOS mapping in this script." >&2
+    exit 1
+fi
 
 echo
 echo "==> Assembled site tree at ${OUT_DIR}:"
