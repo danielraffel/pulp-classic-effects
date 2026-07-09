@@ -21,7 +21,11 @@
 // README for the algorithmic reference.
 
 #include <pulp/format/processor.hpp>
+// Headless WASM DSP builds curate out core/view (canvas/Skia/text-shaping),
+// so every editor reference below is gated on PULP_HEADLESS.
+#if !PULP_HEADLESS
 #include <pulp/view/view.hpp>
+#endif
 
 #include <algorithm>
 #include <array>
@@ -42,11 +46,17 @@ enum PhaserParams : state::ParamID {
 };
 
 // Defined out-of-line in phaser_editor.hpp (included at the bottom).
+// Editor-only: excluded from headless WASM DSP builds (see PULP_HEADLESS).
+#if !PULP_HEADLESS
 std::unique_ptr<view::View> build_phaser_editor(state::StateStore& store);
+#endif
 
 class PhaserProcessor : public format::Processor {
 public:
+// Editor-only: excluded from headless WASM DSP builds (see PULP_HEADLESS).
+#if !PULP_HEADLESS
     std::unique_ptr<view::View> create_view() override { return build_phaser_editor(state()); }
+#endif
 
     // Maximum cascade depth (the largest Stages option). Per-channel state is
     // sized to this; only the first `stage_count()` entries are processed.
@@ -200,4 +210,7 @@ inline std::unique_ptr<format::Processor> create_phaser() {
 
 } // namespace pulp::examples::classic
 
+// Editor-only: excluded from headless WASM DSP builds (see PULP_HEADLESS).
+#if !PULP_HEADLESS
 #include "phaser_editor.hpp"
+#endif

@@ -24,7 +24,11 @@
 // code was copied. References in the repo README.
 
 #include <pulp/format/processor.hpp>
+// Headless WASM DSP builds curate out core/view (canvas/Skia/text-shaping),
+// so every editor reference below is gated on PULP_HEADLESS.
+#if !PULP_HEADLESS
 #include <pulp/view/view.hpp>
+#endif
 
 #include <algorithm>
 #include <cmath>
@@ -40,7 +44,10 @@ enum PanningParams : state::ParamID {
 };
 
 // Defined out-of-line in panning_editor.hpp (included at the bottom).
+// Editor-only: excluded from headless WASM DSP builds (see PULP_HEADLESS).
+#if !PULP_HEADLESS
 std::unique_ptr<view::View> build_panning_editor(state::StateStore& store);
+#endif
 
 // A small fractional-delay ring buffer (linear interpolation). Read taps may
 // differ per channel, so a single shared line is fed once per sample and read
@@ -109,7 +116,10 @@ private:
 
 class PanningProcessor : public format::Processor {
 public:
+// Editor-only: excluded from headless WASM DSP builds (see PULP_HEADLESS).
+#if !PULP_HEADLESS
     std::unique_ptr<view::View> create_view() override { return build_panning_editor(state()); }
+#endif
 
     format::PluginDescriptor descriptor() const override {
         return {.name = "Panning", .manufacturer = "Pulp Examples",
@@ -259,4 +269,7 @@ inline std::unique_ptr<format::Processor> create_panning() {
 
 } // namespace pulp::examples::classic
 
+// Editor-only: excluded from headless WASM DSP builds (see PULP_HEADLESS).
+#if !PULP_HEADLESS
 #include "panning_editor.hpp"
+#endif

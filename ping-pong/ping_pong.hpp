@@ -11,7 +11,11 @@
 // README for the reference.
 
 #include <pulp/format/processor.hpp>
+// Headless WASM DSP builds curate out core/view (canvas/Skia/text-shaping),
+// so every editor reference below is gated on PULP_HEADLESS.
+#if !PULP_HEADLESS
 #include <pulp/view/view.hpp>
+#endif
 #include <pulp/signal/delay_line.hpp>
 
 #include <algorithm>
@@ -36,11 +40,17 @@ enum PingPongParams : state::ParamID {
 constexpr float kPingMaxDelaySecs = 5.0f;
 
 // Defined out-of-line in ping_pong_editor.hpp (included at the bottom).
+// Editor-only: excluded from headless WASM DSP builds (see PULP_HEADLESS).
+#if !PULP_HEADLESS
 std::unique_ptr<view::View> build_ping_pong_editor(state::StateStore& store);
+#endif
 
 class PingPongProcessor : public format::Processor {
 public:
+// Editor-only: excluded from headless WASM DSP builds (see PULP_HEADLESS).
+#if !PULP_HEADLESS
     std::unique_ptr<view::View> create_view() override { return build_ping_pong_editor(state()); }
+#endif
 
     format::PluginDescriptor descriptor() const override {
         return {.name = "Ping-Pong Delay", .manufacturer = "Pulp Examples",
@@ -186,4 +196,7 @@ inline std::unique_ptr<format::Processor> create_ping_pong() {
 
 } // namespace pulp::examples::classic
 
+// Editor-only: excluded from headless WASM DSP builds (see PULP_HEADLESS).
+#if !PULP_HEADLESS
 #include "ping_pong_editor.hpp"
+#endif

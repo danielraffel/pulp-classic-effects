@@ -26,7 +26,11 @@
 // The FFT is Pulp's own pulp::signal::Fft (radix-2, vDSP-accelerated on Apple).
 
 #include <pulp/format/processor.hpp>
+// Headless WASM DSP builds curate out core/view (canvas/Skia/text-shaping),
+// so every editor reference below is gated on PULP_HEADLESS.
+#if !PULP_HEADLESS
 #include <pulp/view/view.hpp>
+#endif
 #include <pulp/signal/fft.hpp>
 
 #include <algorithm>
@@ -95,11 +99,17 @@ inline float pitch_princ_arg(float phase) {
 // Defined out-of-line in pitch_shift_editor.hpp (included at the bottom of this
 // file). Forward-declared so create_view() hands the host the same dark Ink &
 // Signal editor the screenshot tests render.
+// Editor-only: excluded from headless WASM DSP builds (see PULP_HEADLESS).
+#if !PULP_HEADLESS
 std::unique_ptr<view::View> build_pitch_shift_editor(state::StateStore& store);
+#endif
 
 class PitchShiftProcessor : public format::Processor {
 public:
+// Editor-only: excluded from headless WASM DSP builds (see PULP_HEADLESS).
+#if !PULP_HEADLESS
     std::unique_ptr<view::View> create_view() override { return build_pitch_shift_editor(state()); }
+#endif
 
     format::PluginDescriptor descriptor() const override {
         return {.name = "Pitch Shift", .manufacturer = "Pulp Examples",
@@ -407,4 +417,7 @@ inline std::unique_ptr<format::Processor> create_pitch_shift() {
 // the create_view() override links in every TU that uses the processor — the
 // plugin adapter and the headless tests alike. After the class so the editor
 // header sees a complete definition; its re-include of this file is a no-op.
+// Editor-only: excluded from headless WASM DSP builds (see PULP_HEADLESS).
+#if !PULP_HEADLESS
 #include "pitch_shift_editor.hpp"
+#endif

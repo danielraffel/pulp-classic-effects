@@ -25,7 +25,11 @@
 // the book); no third-party effect source was copied. See the README.
 
 #include <pulp/format/processor.hpp>
+// Headless WASM DSP builds curate out core/view (canvas/Skia/text-shaping),
+// so every editor reference below is gated on PULP_HEADLESS.
+#if !PULP_HEADLESS
 #include <pulp/view/view.hpp>
+#endif
 #include <pulp/signal/fft.hpp>
 
 #include <algorithm>
@@ -47,11 +51,17 @@ enum RobotizationParams : state::ParamID {
 };
 
 // Defined out-of-line in robotization_editor.hpp (included at the bottom).
+// Editor-only: excluded from headless WASM DSP builds (see PULP_HEADLESS).
+#if !PULP_HEADLESS
 std::unique_ptr<view::View> build_robotization_editor(state::StateStore& store);
+#endif
 
 class RobotizationProcessor : public format::Processor {
 public:
+// Editor-only: excluded from headless WASM DSP builds (see PULP_HEADLESS).
+#if !PULP_HEADLESS
     std::unique_ptr<view::View> create_view() override { return build_robotization_editor(state()); }
+#endif
 
     enum class Effect { PassThrough = 0, Robotization = 1, Whisperization = 2, Count };
     enum class Window { Rectangular = 0, Bartlett = 1, Hann = 2, Hamming = 3, Count };
@@ -367,4 +377,7 @@ inline std::unique_ptr<format::Processor> create_robotization() {
 
 } // namespace pulp::examples::classic
 
+// Editor-only: excluded from headless WASM DSP builds (see PULP_HEADLESS).
+#if !PULP_HEADLESS
 #include "robotization_editor.hpp"
+#endif
