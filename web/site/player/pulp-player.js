@@ -399,7 +399,7 @@ export async function mountDemo(opts) {
     inputGain: opts.inputGain ?? 1, inputTrim: null, limiter: null,
     meterWidget: null, onEvent: null, seedMemo: null, shellMode: null,
     starting: false, handlersInstalled: false, meterToken: 0,
-    loopBuffer: null, loopSource: null, micStream: null, micNode: null,
+    loopBuffer: null, loopSource: null, micStream: null, micNode: null, micSink: null,
     held: new Map(),                    // note -> Set of source tags
     typingBase: 48, chainSynth: false,
     // Chained-synth voice pool. MonoSynth is monophonic, so each MIDI channel
@@ -769,6 +769,7 @@ export async function mountDemo(opts) {
   function stopSource() {
     if (S.loopSource) { try { S.loopSource.stop(); } catch {} S.loopSource.disconnect(); S.loopSource = null; }
     if (S.micNode) { S.micNode.disconnect(); S.micNode = null; }
+    if (S.micSink) { try { S.micSink.pause(); } catch {} S.micSink.srcObject = null; S.micSink = null; }
     if (S.micStream) { S.micStream.getTracks().forEach((t) => t.stop()); S.micStream = null; }
   }
   async function setSource(kind) {
@@ -786,6 +787,16 @@ export async function mountDemo(opts) {
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: { echoCancellation: false, autoGainControl: false, noiseSuppression: false } });
         S.micStream = stream;
+        // Safari quirk 1: getUserMedia can leave the AudioContext suspended.
+        if (S.ctx.state !== "running") { try { await S.ctx.resume(); } catch {} }
+        // Safari quirk 2: a MediaStreamAudioSourceNode outputs SILENCE unless the
+        // stream is also consumed by a playing media element. Attach it to a
+        // muted, inline <audio> sink to keep the stream "hot" (harmless in
+        // Chrome/Firefox, which don't need it). Muted so it never doubles back.
+        const sink = new Audio();
+        sink.muted = true; sink.playsInline = true; sink.srcObject = stream;
+        try { await sink.play(); } catch {}
+        S.micSink = sink;
         S.micNode = S.ctx.createMediaStreamSource(stream);
         sourceTrim(S, S.micNode);
         status(`${S.wam.descriptor.name} — microphone live`);
