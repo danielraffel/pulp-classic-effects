@@ -20,11 +20,25 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { execSync } from "node:child_process";
+import { createHash } from "node:crypto";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SITE_BASE = (process.argv[2] || "").replace(/\/+$/, "");
 const SITE_DIR = process.argv[3] || join(HERE, "site");
 if (!SITE_BASE) { console.error("usage: node gen-og.mjs <SITE_BASE> [SITE_DIR]"); process.exit(2); }
+
+// Cache-bust the player import. GitHub Pages serves player/pulp-player.js with
+// max-age=14400 (4h) but the demo pages with max-age=600 (10m), and the page's
+// `import ".../pulp-player.js"` carries no version — so an updated player would
+// not reach a returning visitor for up to 4 hours. Stamp the page's import with
+// a short content hash of the player: when the player changes the hash changes,
+// the (quickly-refreshed) page requests a new URL, and the browser refetches.
+// Only the main-thread entry import is versioned — NOT the worklet
+// processor/dsp URLs, whose two sides must hash to the same processor name.
+const playerFile = join(SITE_DIR, "player", "pulp-player.js");
+const playerHash = existsSync(playerFile)
+  ? createHash("sha1").update(readFileSync(playerFile)).digest("hex").slice(0, 8)
+  : null;
 
 // GitHub repo base for "source" links: PULP_REPO_BASE wins; else derive from the
 // git remote (git@github.com:org/repo.git or https://github.com/org/repo.git ->
@@ -84,8 +98,14 @@ function rewritePluginPage(dir, name, desc) {
   const file = join(SITE_DIR, dir, "index.html");
   if (!existsSync(file)) { console.warn(`skip (missing): ${dir}/index.html`); return false; }
   const src = readFileSync(file, "utf8");
-  const script = (src.match(/<script[\s\S]*<\/script>/) || [])[0];
+  let script = (src.match(/<script[\s\S]*<\/script>/) || [])[0];
   if (!script) { console.warn(`skip (no <script>): ${dir}/index.html`); return false; }
+  // Version the player import for cache-busting (handles a prior ?v= too).
+  if (playerHash) {
+    script = script.replace(
+      /(["'])((?:\.\.?\/)*player\/pulp-player\.js)(?:\?v=[a-f0-9]+)?\1/g,
+      `$1$2?v=${playerHash}$1`);
+  }
   const title = `${name} — Pulp web demo`;
   const url = `${SITE_BASE}/${dir}/`;
   const ogImage = existsSync(join(SITE_DIR, dir, "og.png")) ? `${url}og.png` : null;
@@ -125,4 +145,4 @@ let g = galleryHtml.replace(/\n?\s*<!-- og:begin -->[\s\S]*?<!-- og:end -->/, ""
 g = g.replace(/(<title>[^<]*<\/title>)/, `$1\n${galleryOg}`);
 writeFileSync(join(SITE_DIR, "index.html"), g);
 
-console.log(`gen-og: ${n} plugin page(s) + gallery updated (base ${SITE_BASE}; source ${REPO_BASE || "none"})`);
+console.log(`gen-og: ${n} plugin page(s) + gallery updated (base ${SITE_BASE}; source ${REPO_BASE || "none"}; player v=${playerHash || "n/a"})`);
