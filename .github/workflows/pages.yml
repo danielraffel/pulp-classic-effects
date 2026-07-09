@@ -130,6 +130,7 @@ jobs:
       # twitter:card=summary_large_image on every page. gen-og already ran once
       # inside build-web.sh (text-only cards); this pass upgrades them.
       - name: Render OG preview images (headless Chrome)
+        continue-on-error: true   # OG images are polish; never block the site deploy
         env:
           CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
         run: |
