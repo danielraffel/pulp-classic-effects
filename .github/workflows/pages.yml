@@ -54,7 +54,7 @@ env:
   # PULP_REF to the merge commit once the web-ABI branch lands on
   # danielraffel/pulp main (or set PULP_REPO to the fork that hosts it).
   PULP_REPO: danielraffel/pulp
-  PULP_REF: 009e775a2d12e1cfa2df9ab372ed818888f0d65b
+  PULP_REF: d86f57db96be782753f240e827f00fbf753f3449
   # choc headers (MIDI only, for the headless DSP). Exact ref pulp's own
   # dependency manifest registers (tools/cmake/PulpDependencies.cmake pins choc
   # to danielraffel/choc @ df148a41 — an interim fork of Tracktion/choc#64), so
