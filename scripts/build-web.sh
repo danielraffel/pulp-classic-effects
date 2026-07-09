@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # build-web.sh — reproduce the GitHub Pages build locally (and in CI).
 #
-# Cross-compiles every demoable example plugin to a headless WAMv2 DSP module
+# Cross-compiles every classic-effect plugin to a headless WAMv2 DSP module
 # (via web/CMakeLists.txt + PulpWam.cmake) and assembles a static site tree
 # under docs/ that GitHub Pages serves as-is.
 #
@@ -78,52 +78,53 @@ emcmake cmake -S "${REPO_ROOT}/web" -B "${BUILD_DIR}" \
 cmake --build "${BUILD_DIR}" -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
 
 # --- Assemble the site tree --------------------------------------------------
-# Map each CMake target's <Name>.js to a demo folder. The folder names match the
-# plugin source dirs so the site (authored separately) can reference them 1:1.
+# Map each SINGLE_FILE CMake target's <Name>.js to a demo folder. The folder
+# names match the plugin source dirs so the site (authored separately) can
+# reference them 1:1. (The *Raw targets are the Node-verification flavour and
+# are not shipped.)
 #   <TargetName>:<demo-folder>
 DEMOS=(
-    "MonoSynth:mono-synth"
-    "SynthWithPresets:synth-with-presets"
-    "Gain:gain"
-    "StateMemo:state-memo"
-    "MidiTranspose:midi-transpose"
-    "MpeSpreader:mpe-spreader"
-    "MidiInspector:midi-inspector"
-    "SysexEcho:sysex-echo"
+    "Chorus:chorus"
+    "CompressorExpander:compressor-expander"
+    "Delay:delay"
+    "Distortion:distortion"
+    "Flanger:flanger"
+    "Panning:panning"
+    "ParametricEq:parametric-eq"
+    "Phaser:phaser"
+    "PingPong:ping-pong"
+    "PitchShift:pitch-shift"
+    "RingMod:ring-mod"
+    "Robotization:robotization"
+    "Tremolo:tremolo"
+    "Vibrato:vibrato"
+    "Wah:wah"
 )
 
 # Fresh output tree (docs/ is gitignored — never committed).
 rm -rf "${OUT_DIR}"
 mkdir -p "${OUT_DIR}/player"
 
-# The authored site — gallery + one page per demo + the <pulp-demo> player and
+# The authored site — gallery + one page per effect + the <pulp-demo> player and
 # its canvas widgets — lives in web/site/ and is committed. Everything else in
 # docs/ is generated below. The demo folder names in web/site/ must match the
-# DEMOS mapping, so a page finds its own wam-dsp.js as a sibling; the cross-check
-# after the loop enforces that rather than trusting it.
+# DEMOS mapping so a page finds its own wam-dsp.js as a sibling; the check after
+# the loop enforces that rather than trusting it.
 cp -R "${REPO_ROOT}/web/site/." "${OUT_DIR}/"
 
 # The shared main-thread WAM host is served ONCE at player/wam-plugin.js. It is
 # loaded by the site page and told each demo's dsp+processor URLs, so it does not
 # need to sit next to the DSP.
 #
-# It DOES need wam-runtime.mjs beside it: wam-plugin.js imports
-# processorNameForUrl() from there, so that the AudioWorkletNode it creates asks
-# for the same per-module processor name the worklet registered. Ship a copy in
-# player/ as well as in each demo dir (the worklet imports its own).
+# player/ needs THREE siblings of wam-plugin.js:
+#   * wam-runtime.mjs — wam-plugin.js imports processorNameForUrl() from it, so
+#     the AudioWorkletNode it creates asks for the same per-module processor name
+#     the worklet registered. A missing sibling 404s.
+#   * wam-scope.mjs   — the player imports it for the analyser/scope UI. Same
+#     404-if-missing hazard, so it must ship beside wam-plugin.js too.
 cp "${WASM_SRC}/wam-plugin.js"   "${OUT_DIR}/player/wam-plugin.js"
 cp "${WASM_SRC}/wam-runtime.mjs" "${OUT_DIR}/player/wam-runtime.mjs"
-
-# The player imports the SDK's oscilloscope trigger (a scope that plots from the
-# raw analyser buffer shows a waveform sliding sideways every frame; wam-scope
-# finds the rising zero-crossing so it stands still). Ship it beside the player.
 cp "${WASM_SRC}/wam-scope.mjs"   "${OUT_DIR}/player/wam-scope.mjs"
-
-# Third-party attribution travels with the deployed site. The start overlay
-# inlines Lucide's ISC-licensed `play` glyph; ISC requires its copyright notice
-# to accompany any redistribution, and publishing to Pages *is* redistribution,
-# so ship the notice at the site root where a visitor can reach it (/CREDITS.txt).
-cp "${REPO_ROOT}/web/CREDITS.txt" "${OUT_DIR}/CREDITS.txt"
 
 for entry in "${DEMOS[@]}"; do
     target="${entry%%:*}"
@@ -150,10 +151,9 @@ for entry in "${DEMOS[@]}"; do
     cp "${WASM_SRC}/wam-runtime.mjs"  "${dest}/wam-runtime.mjs"
 done
 
-# Every demo folder must carry BOTH its generated DSP and its authored page.
-# A folder rename in web/site/ (or in DEMOS) would otherwise ship a gallery whose
-# links 404, or a page whose sibling ./wam-dsp.js does not exist — both of which
-# only surface in a browser, late.
+# Every effect folder must carry BOTH its generated DSP and its authored page. A
+# rename on either side would otherwise ship a gallery whose links 404, or a page
+# whose sibling ./wam-dsp.js is missing — both only visible in a browser, late.
 missing=0
 for entry in "${DEMOS[@]}"; do
     folder="${entry##*:}"
@@ -169,7 +169,7 @@ if [[ ! -f "${OUT_DIR}/index.html" ]]; then
     missing=1
 fi
 if [[ "${missing}" -ne 0 ]]; then
-    echo "error: web/site/ demo folders must match the DEMOS mapping in this script." >&2
+    echo "error: web/site/ folders must match the DEMOS mapping in this script." >&2
     exit 1
 fi
 
