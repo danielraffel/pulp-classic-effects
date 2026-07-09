@@ -19,11 +19,27 @@
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { execSync } from "node:child_process";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SITE_BASE = (process.argv[2] || "").replace(/\/+$/, "");
 const SITE_DIR = process.argv[3] || join(HERE, "site");
 if (!SITE_BASE) { console.error("usage: node gen-og.mjs <SITE_BASE> [SITE_DIR]"); process.exit(2); }
+
+// GitHub repo base for "source" links: PULP_REPO_BASE wins; else derive from the
+// git remote (git@github.com:org/repo.git or https://github.com/org/repo.git ->
+// https://github.com/org/repo). Null if neither is available (links omitted).
+function deriveRepoBase() {
+  if (process.env.PULP_REPO_BASE) return process.env.PULP_REPO_BASE.replace(/\/+$/, "");
+  try {
+    const url = execSync("git config --get remote.origin.url", { cwd: HERE, encoding: "utf8" }).trim();
+    const m = url.match(/github\.com[:/]+([^/]+)\/(.+?)(?:\.git)?$/);
+    if (m) return `https://github.com/${m[1]}/${m[2]}`;
+  } catch {}
+  return null;
+}
+const REPO_BASE = deriveRepoBase();
+const REPO_BRANCH = process.env.PULP_REPO_BRANCH || "main";
 
 const galleryHtml = readFileSync(join(SITE_DIR, "index.html"), "utf8");
 
@@ -73,13 +89,19 @@ function rewritePluginPage(dir, name, desc) {
   const title = `${name} — Pulp web demo`;
   const url = `${SITE_BASE}/${dir}/`;
   const ogImage = existsSync(join(SITE_DIR, dir, "og.png")) ? `${url}og.png` : null;
+  // This plugin's own source folder in the repo (one level deep, mirroring the
+  // page being one level under the gallery). The player renders it as a subtle
+  // "source" link when the meta is present.
+  const sourceMeta = REPO_BASE
+    ? `\n  <meta name="pulp:source" content="${esc(`${REPO_BASE}/tree/${REPO_BRANCH}/${dir}`)}">`
+    : "";
   const html = `<!doctype html>
 <html lang="en" data-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>${esc(title)}</title>
-  <meta name="description" content="${esc(desc)}">
+  <meta name="description" content="${esc(desc)}">${sourceMeta}
 ${ogBlock({ title, desc, url, image: ogImage })}
 </head>
 <body>
@@ -103,4 +125,4 @@ let g = galleryHtml.replace(/\n?\s*<!-- og:begin -->[\s\S]*?<!-- og:end -->/, ""
 g = g.replace(/(<title>[^<]*<\/title>)/, `$1\n${galleryOg}`);
 writeFileSync(join(SITE_DIR, "index.html"), g);
 
-console.log(`gen-og: ${n} plugin page(s) + gallery updated (base ${SITE_BASE})`);
+console.log(`gen-og: ${n} plugin page(s) + gallery updated (base ${SITE_BASE}; source ${REPO_BASE || "none"})`);

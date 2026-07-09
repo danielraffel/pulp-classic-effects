@@ -352,6 +352,17 @@ export async function mountDemo(opts) {
   // a custom-domain deploy is a different site.
   const galleryHref = opts.galleryHref || "../index.html";
 
+  // A subtle link to this plugin's source. Prefer an explicit opt; else read a
+  // <meta name="pulp:source"> that the page carries (gen-og injects one pointing
+  // at the plugin's own repo folder). Absent → no link, so a standalone page
+  // that sets no meta simply shows none.
+  const sourceHref = opts.sourceHref
+    || document.querySelector('meta[name="pulp:source"]')?.getAttribute("content")
+    || null;
+  const sourceLink = sourceHref
+    ? ` &middot; <a href="${sourceHref}" target="_blank" rel="noopener">source</a>`
+    : "";
+
   document.title = `${title} — Pulp web demo`;
 
   const coarse = matchMedia("(hover: none) and (pointer: coarse)").matches;
@@ -360,7 +371,7 @@ export async function mountDemo(opts) {
   root.innerHTML = `
     <div class="pp-top">
       <a href="${galleryHref}">&larr; Gallery</a>
-      <span>Pulp <a href="https://www.webaudiomodules.com/docs/intro/" target="_blank" rel="noopener">WAM</a> demo</span>
+      <span>Pulp <a href="https://www.webaudiomodules.com/docs/intro/" target="_blank" rel="noopener">WAM</a> demo${sourceLink}</span>
     </div>
     <div id="panel" class="pulp">
       <h1>${title}</h1>
