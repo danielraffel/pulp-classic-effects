@@ -837,11 +837,23 @@ export async function mountDemo(opts) {
     const sel = $("#src");
     sel.addEventListener("change", () => setSource(sel.value));
   }
+  // Safari's Web Audio AudioSession (navigator.audioSession) gates mic capture:
+  // the default "playback" category REJECTS getUserMedia with InvalidStateError
+  // ("AudioSession category is not compatible with audio capture"). Capture needs
+  // "play-and-record"; playback-only should return to "playback" so iOS routes to
+  // the main speaker (play-and-record can duck / route to the earpiece). No-op on
+  // Chrome/Firefox, which don't implement the API.
+  function setAudioSession(type) {
+    try { if (navigator.audioSession) navigator.audioSession.type = type; } catch {}
+  }
   function stopSource() {
     if (S.loopSource) { try { S.loopSource.stop(); } catch {} S.loopSource.disconnect(); S.loopSource = null; }
     if (S.micNode) { S.micNode.disconnect(); S.micNode = null; }
     if (S.micSink) { try { S.micSink.pause(); } catch {} S.micSink.srcObject = null; S.micSink = null; }
-    if (S.micStream) { S.micStream.getTracks().forEach((t) => t.stop()); S.micStream = null; }
+    if (S.micStream) {
+      S.micStream.getTracks().forEach((t) => t.stop()); S.micStream = null;
+      setAudioSession("playback");   // leaving mic → restore full-speaker playback
+    }
   }
   async function setSource(kind) {
     stopSource();
@@ -855,10 +867,13 @@ export async function mountDemo(opts) {
       status(`${S.wam.descriptor.name} — loop running`);
     } else if (kind === "mic") {
       try {
+        // Safari: the audio session must allow capture BEFORE getUserMedia, or it
+        // rejects with InvalidStateError. Must run in the same user gesture.
+        setAudioSession("play-and-record");
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: { echoCancellation: false, autoGainControl: false, noiseSuppression: false } });
         S.micStream = stream;
-        // Safari quirk 1: getUserMedia can leave the AudioContext suspended.
+        // getUserMedia can leave the AudioContext suspended (Safari).
         if (S.ctx.state !== "running") { try { await S.ctx.resume(); } catch {} }
         // Safari quirk 2: a MediaStreamAudioSourceNode outputs SILENCE unless the
         // stream is also consumed by a playing media element. Attach it to a
