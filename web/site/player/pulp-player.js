@@ -41,6 +41,17 @@ function injectStyles() {
   if (stylesInjected) return;
   stylesInjected = true;
 
+  // Mobile fit: the plugin pages are thin HTML wrappers with no <meta viewport>,
+  // so without this mobile Safari lays them out at a ~980px desktop width and
+  // scale-shrinks the result (tiny card, big margins). Inject it before first
+  // meaningful paint so the panel sizes to the device width instead. Idempotent.
+  if (!document.querySelector('meta[name="viewport"]')) {
+    const vp = document.createElement("meta");
+    vp.name = "viewport";
+    vp.content = "width=device-width, initial-scale=1, viewport-fit=cover";
+    document.head.appendChild(vp);
+  }
+
   // Our demos are dark: force the Ink & Signal dark appearance.
   document.documentElement.setAttribute("data-theme", "dark");
   window.__triggeredView = triggeredView;   // test seam (SDK scope trigger)
@@ -184,7 +195,15 @@ function injectStyles() {
   .pp-recv{background:var(--bg-surface);border:1px solid var(--control-border);border-radius:6px;padding:10px;
            font:12px/1.5 ui-monospace,Menlo,monospace;color:var(--accent-primary);min-height:20px;
            word-break:break-all}
-  `;
+
+  /* Mobile fit: with the viewport meta in place the card is now device-width, so
+     reclaim the wide desktop margins/padding and let the fixed native param grid
+     (4 x 110px) wrap when it can't fit the screen instead of overflowing. */
+  @media (max-width: 680px) {
+    .pp-top{margin:14px 12px 0}
+    #panel{margin:10px 8px 32px;padding:18px 12px 44px;border-radius:12px}
+    #params{grid-template-columns:repeat(auto-fit,110px);column-gap:8px}
+  }`;
   const el = document.createElement("style");
   el.textContent = css;
   document.head.appendChild(el);
@@ -256,29 +275,54 @@ function synthLoop(ctx) {
   return buf;
 }
 
-// ——————————————————————————————————————————————————— PWS1 state container
-// [ "PWS1" ][u32 params_len][params][u32 plugin_len][plugin]  (little-endian)
+// ——————————————————————————————————————————— plugin_state_io "PLST" envelope
+// The SDK composes host-facing plugin state with the SAME format the native
+// VST3/AU/CLAP builds use (core/format/src/plugin_state_io.cpp):
+//   [ "PLST" ][u32 version=1][u32 store_len][u32 plugin_len]  (16-byte header)
+//   [ store bytes (starts "PULP") ][ plugin bytes ]
+//   [u32 crc32 over everything above]                          (4-byte footer)
+// When the plugin owns no extra state, serialize() returns the BARE store blob
+// (no envelope), so a container we read may be either shape.
 // state-memo plugin blob: [u32 version=1][u32 memo_len][memo bytes]
-const MAGIC = [0x50, 0x57, 0x53, 0x31]; // "PWS1"
+const ENV_MAGIC = [0x50, 0x4c, 0x53, 0x54]; // "PLST"
+const STORE_MAGIC = [0x50, 0x55, 0x4c, 0x50]; // "PULP"
+const ENV_VERSION = 1, ENV_HEADER = 16, ENV_FOOTER = 4;
+
+// zlib CRC-32 — byte-identical to crc32_simple in core/state/src/store.cpp.
+function crc32(bytes) {
+  let crc = 0xffffffff;
+  for (let i = 0; i < bytes.length; i++) {
+    crc ^= bytes[i];
+    for (let j = 0; j < 8; j++) crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+  }
+  return (~crc) >>> 0;
+}
+const has4 = (b, m, o = 0) => b.length >= o + 4 && b[o] === m[0] && b[o+1] === m[1] && b[o+2] === m[2] && b[o+3] === m[3];
+
 function parseContainer(bytes) {
+  // Bare StateStore blob (plugin owned no extra state): all params, no plugin.
+  if (has4(bytes, STORE_MAGIC)) return { params: bytes.slice(), plugin: new Uint8Array(0) };
+  if (!has4(bytes, ENV_MAGIC)) throw new Error("not a PLST envelope");
   const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  for (let i = 0; i < 4; i++) if (bytes[i] !== MAGIC[i]) throw new Error("not a PWS1 container");
-  const paramsLen = dv.getUint32(4, true);
-  const params = bytes.slice(8, 8 + paramsLen);
-  const off = 8 + paramsLen;
-  const pluginLen = dv.getUint32(off, true);
-  const plugin = bytes.slice(off + 4, off + 4 + pluginLen);
+  const storeLen = dv.getUint32(8, true);
+  const pluginLen = dv.getUint32(12, true);
+  const params = bytes.slice(ENV_HEADER, ENV_HEADER + storeLen);
+  const plugin = bytes.slice(ENV_HEADER + storeLen, ENV_HEADER + storeLen + pluginLen);
   return { params, plugin };
 }
 function buildContainer(params, plugin) {
-  const out = new Uint8Array(4 + 4 + params.length + 4 + plugin.length);
+  // Mirror plugin_state_io::serialize: a bare store blob when there is no plugin
+  // payload, else the versioned + CRC'd PLST envelope.
+  if (!plugin || plugin.length === 0) return params.slice();
+  const out = new Uint8Array(ENV_HEADER + params.length + plugin.length + ENV_FOOTER);
   const dv = new DataView(out.buffer);
-  out.set(MAGIC, 0);
-  dv.setUint32(4, params.length, true);
-  out.set(params, 8);
-  const off = 8 + params.length;
-  dv.setUint32(off, plugin.length, true);
-  out.set(plugin, off + 4);
+  out.set(ENV_MAGIC, 0);
+  dv.setUint32(4, ENV_VERSION, true);
+  dv.setUint32(8, params.length, true);
+  dv.setUint32(12, plugin.length, true);
+  out.set(params, ENV_HEADER);
+  out.set(plugin, ENV_HEADER + params.length);
+  dv.setUint32(out.length - ENV_FOOTER, crc32(out.subarray(0, out.length - ENV_FOOTER)), true);
   return out;
 }
 function readMemoFromPlugin(plugin) {
@@ -303,7 +347,10 @@ export async function mountDemo(opts) {
   const root = opts.root || document.body;
   const title = opts.title || "Pulp Plugin";
   const subtitle = opts.subtitle || "";
-  const galleryHref = opts.galleryHref || "../../index.html";
+  // The gallery is ONE level up from a plugin page (/pulp-example-plugins/<name>/
+  // → /pulp-example-plugins/). "../../" would escape to the domain root, which on
+  // a custom-domain deploy is a different site.
+  const galleryHref = opts.galleryHref || "../index.html";
 
   document.title = `${title} — Pulp web demo`;
 
@@ -313,7 +360,7 @@ export async function mountDemo(opts) {
   root.innerHTML = `
     <div class="pp-top">
       <a href="${galleryHref}">&larr; Gallery</a>
-      <span>Pulp WAM demo</span>
+      <span>Pulp <a href="https://www.webaudiomodules.com/docs/intro/" target="_blank" rel="noopener">WAM</a> demo</span>
     </div>
     <div id="panel" class="pulp">
       <h1>${title}</h1>
@@ -344,6 +391,10 @@ export async function mountDemo(opts) {
     loopBuffer: null, loopSource: null, micStream: null, micNode: null,
     held: new Map(),                    // note -> Set of source tags
     typingBase: 48, chainSynth: false,
+    // Chained-synth voice pool. MonoSynth is monophonic, so each MIDI channel
+    // the plugin emits (MPE Spreader gives every held note its own channel)
+    // needs its own voice to sound at the same time.
+    pool: [], voiceByChan: new Map(), voiceClock: 0,
     descriptor: null, params: null, mode: null,
   };
 
@@ -488,10 +539,28 @@ export async function mountDemo(opts) {
   const TYPING_BASE_MIN = 0, TYPING_BASE_MAX = 96;
   const keyEl = (n) => root.querySelector(`[data-note="${n}"]`);
   const noteForKey = (key) => { const s = KEY_SEMITONE[key]; return s === undefined ? undefined : S.typingBase + s; };
+  // A field where letter keys mean text, not notes: <textarea>, a text-like
+  // <input>, or a contenteditable. Deliberately EXCLUDES checkbox/range/button
+  // so those don't hijack musical typing when focused.
+  const TEXT_INPUT_TYPES = new Set(["text","search","email","url","tel","password","number"]);
+  function isTextEntry(el) {
+    if (!el) return false;
+    if (el.isContentEditable) return true;
+    const tag = el.tagName;
+    if (tag === "TEXTAREA") return true;
+    if (tag === "INPUT") return TEXT_INPUT_TYPES.has((el.type || "text").toLowerCase());
+    return false;
+  }
 
   function renderKeyboard() {
     const kb = $("#kb");
     if (!kb) return;
+    // Black keys are positioned in absolute px derived from kb.clientWidth. On
+    // the FIRST paint (notably Safari, and before web fonts settle) that width
+    // can still be 0 or pre-layout, which threw the black keys off-screen until a
+    // manual refresh. If the width isn't known yet, defer to the next frame; a
+    // ResizeObserver (installed once below) also re-renders on any later resize.
+    if (!kb.clientWidth) { requestAnimationFrame(renderKeyboard); return; }
     kb.innerHTML = "";
     const whites = [];
     for (let oct = 0; oct < OCTAVES; oct++) for (const s of WHITE) whites.push(S.typingBase + oct*12 + s);
@@ -542,6 +611,17 @@ export async function mountDemo(opts) {
     if (S.handlersInstalled) return;
     S.handlersInstalled = true;
     const kb = $("#kb");
+    // Re-lay-out the (absolutely-positioned) black keys whenever the keyboard's
+    // width changes — first layout, web-font settle, window resize, or a mobile
+    // orientation flip. rAF-debounced so a burst of resize ticks coalesces.
+    if (typeof ResizeObserver !== "undefined") {
+      let last = kb.clientWidth, pending = false;
+      new ResizeObserver(() => {
+        if (kb.clientWidth === last || pending) return;
+        pending = true;
+        requestAnimationFrame(() => { pending = false; last = kb.clientWidth; renderKeyboard(); });
+      }).observe(kb);
+    }
     kb.addEventListener("pointerdown", (e) => {
       const n = e.target.dataset?.note; if (!n) return;
       noteOn(+n);
@@ -551,7 +631,12 @@ export async function mountDemo(opts) {
     kb.addEventListener("pointerleave", () => { for (const n of [...S.held.keys()]) noteOff(n, "pointer"); });
     addEventListener("keydown", (e) => {
       if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.target.tagName === "TEXTAREA" || e.target.tagName === "INPUT") return;
+      // Only suppress musical typing when a TEXT-ENTRY field has focus (the
+      // state-memo textarea). A checkbox / range / toggle (e.g. the "Chain into
+      // MonoSynth" checkbox, or pitch-bend/mod-wheel sliders) must NOT swallow
+      // the keyboard — clicking one used to leave `e.target` an <input> and kill
+      // typing until you clicked elsewhere.
+      if (isTextEntry(e.target)) return;
       const key = e.key.toLowerCase();
       if (key === "z" || key === "x") { shiftOctave(key === "z" ? -1 : 1); return; }
       const n = noteForKey(key);
@@ -825,26 +910,57 @@ export async function mountDemo(opts) {
   }
   window.__sendSysex = (arr) => S.wam?.sendSysex(arr instanceof Uint8Array ? arr : new Uint8Array(arr));
 
-  // Lazily attach a MonoSynth and forward MIDI into it. The processor name is now
-  // derived per module URL (processorNameForUrl in wam-runtime.mjs), so two
-  // different plugins can share ONE AudioContext — the chained synth lives in the
-  // SAME context (S.ctx) as the MIDI effect, no separate graph needed.
+  // How many chained-synth voices to pre-warm. A monophonic chain (transpose)
+  // only ever emits on one channel, so one voice suffices; MPE Spreader hands
+  // every held note its own channel, so it needs a small polyphonic pool.
+  const POLY_VOICES = opts.midiViz === "mpe" ? 6 : 1;
+
+  // Attach a pool of MonoSynth voices and forward MIDI into them, routed by the
+  // channel each event carries. The processor name is derived per module URL
+  // (processorNameForUrl in wam-runtime.mjs), so every voice can share ONE
+  // AudioContext (S.ctx) with the MIDI effect — no separate graph per voice.
   async function setChain(on) {
     S.chainSynth = on;
     if (on) {
-      if (!S.synth) {
-        S.synth = await PulpWAM.createInstance(S.ctx, null,
-          { dsp: opts.synthUrls.dsp, processor: opts.synthUrls.processor });
-        if (!S.analyser) {
-          S.analyser = S.ctx.createAnalyser(); S.analyser.fftSize = 4096;   // capture window > SCOPE_DRAW so the trigger has slack
-          connectOutput(S);
-        }
+      if (!S.analyser) {
+        S.analyser = S.ctx.createAnalyser(); S.analyser.fftSize = 4096;   // capture window > SCOPE_DRAW so the trigger has slack
+        connectOutput(S);
       }
-      S.synth.audioNode.connect(S.analyser);
+      if (!S.pool.length) {
+        // Pre-warm the whole pool up front (a deliberate toggle can absorb the
+        // one-time spin-up) so a chord plays instantly rather than dropping the
+        // first note on each channel while its voice loads.
+        S.pool = await Promise.all(Array.from({ length: POLY_VOICES }, async () => {
+          const synth = await PulpWAM.createInstance(S.ctx, null,
+            { dsp: opts.synthUrls.dsp, processor: opts.synthUrls.processor });
+          synth.audioNode.connect(S.analyser);
+          return { synth, ch: null, t: 0 };
+        }));
+        S.synth = S.pool[0]?.synth || null;   // back-compat handle (tests / teardown)
+      } else {
+        for (const v of S.pool) v.synth.audioNode.connect(S.analyser);
+      }
       ensureScope();
-    } else if (S.synth) {
-      try { S.synth.audioNode.disconnect(); } catch {}
+    } else {
+      for (const v of S.pool) { try { v.synth.audioNode.disconnect(); } catch {} }
     }
+  }
+
+  // Map a MIDI channel to a pool voice, keeping a stable assignment so repeated
+  // notes on the same channel reuse one voice; steal the least-recently-used
+  // voice when a chord needs more channels than the pool has.
+  function voiceForChannel(ch) {
+    const existing = S.voiceByChan.get(ch);
+    if (existing !== undefined) { S.pool[existing].t = ++S.voiceClock; return S.pool[existing].synth; }
+    let pick = 0, oldest = Infinity;
+    for (let i = 0; i < S.pool.length; i++) {
+      if (S.pool[i].ch === null) { pick = i; oldest = -1; break; }
+      if (S.pool[i].t < oldest) { oldest = S.pool[i].t; pick = i; }
+    }
+    const v = S.pool[pick];
+    if (v.ch !== null) S.voiceByChan.delete(v.ch);
+    v.ch = ch; v.t = ++S.voiceClock; S.voiceByChan.set(ch, pick);
+    return v.synth;
   }
 
   // ——————————————————————————————————————————— state-memo UI
@@ -859,7 +975,7 @@ export async function mountDemo(opts) {
         <button class="pp-btn" id="memoload">Load state</button>
         <span class="pp-lab" id="memostat"></span>
       </div>
-      <div class="pp-tip">Save snapshots <code>wam.getState()</code> (the versioned <code>PWS1</code> container). Edit the text, then Load to restore it via <code>wam.setState()</code> — the memo survives the round-trip.</div>`;
+      <div class="pp-tip">Save snapshots <code>wam.getState()</code> (the versioned, CRC-checked <code>PLST</code> envelope — the same format the native VST3/AU/CLAP builds use). Edit the text, then Load to restore it via <code>wam.setState()</code> — the memo survives the round-trip.</div>`;
     $("#body").appendChild(sec);
     let saved = null;
     const memo = () => $("#memo");
@@ -1029,7 +1145,12 @@ function connectOutput(S) {
           demo.midiOut.push({ status: bytes[0], d1: bytes[1], d2: bytes[2], bytes: [...bytes] });
           if (demo.midiOut.length > 512) demo.midiOut.shift();
           S.onEvent?.(bytes);
-          if (S.chainSynth && S.synth) S.synth.scheduleMidi(bytes[0], bytes[1] ?? 0, bytes[2] ?? 0, 0);
+          // Route each event to the voice for its channel so a spread chord
+          // sounds every note at once (a single mono voice would drop all but
+          // the last). Non-note messages (CC/bend) follow their channel's voice.
+          if (S.chainSynth && S.pool.length) {
+            voiceForChannel(bytes[0] & 0x0f).scheduleMidi(bytes[0], bytes[1] ?? 0, bytes[2] ?? 0, 0);
+          }
         }
       };
     }
@@ -1126,6 +1247,7 @@ function connectOutput(S) {
     await S.ctx.close();
     if (S.synthCtx) { try { await S.synthCtx.close(); } catch {} }
     S.ctx = null; S.wam = null; S.synth = null; S.synthCtx = null; S.analyser = null;
+    S.pool = []; S.voiceByChan.clear(); S.voiceClock = 0;
     S.limiter = null; S.inputTrim = null;   // belong to the closed context; rebuilt on next start
     S.chainSynth = false; S.starting = false;
     demo.started = false;
