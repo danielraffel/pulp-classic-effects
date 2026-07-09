@@ -27,7 +27,11 @@
 // was read.
 
 #include <pulp/format/processor.hpp>
+// Headless WASM DSP builds curate out core/view (canvas/Skia/text-shaping),
+// so every editor reference below is gated on PULP_HEADLESS.
+#if !PULP_HEADLESS
 #include <pulp/view/view.hpp>
+#endif
 
 #include <algorithm>
 #include <array>
@@ -62,13 +66,19 @@ enum class ChorusInterp { nearest = 0, linear = 1, cubic = 2 };
 // Defined out-of-line in chorus_editor.hpp (included at the bottom of this file).
 // Forward-declared so create_view() hands the host the same dark Ink & Signal
 // editor the screenshot tests render.
+// Editor-only: excluded from headless WASM DSP builds (see PULP_HEADLESS).
+#if !PULP_HEADLESS
 std::unique_ptr<view::View> build_chorus_editor(state::StateStore& store);
+#endif
 
 class ChorusProcessor : public format::Processor {
 public:
     // Hand the host our dark Ink & Signal editor; the framework owns the
     // returned tree and may call this once per attached editor window.
+// Editor-only: excluded from headless WASM DSP builds (see PULP_HEADLESS).
+#if !PULP_HEADLESS
     std::unique_ptr<view::View> create_view() override { return build_chorus_editor(state()); }
+#endif
 
     format::PluginDescriptor descriptor() const override {
         return {.name = "Chorus", .manufacturer = "Pulp Examples",
@@ -282,4 +292,7 @@ inline std::unique_ptr<format::Processor> create_chorus() {
 // create_view() override links in every TU that uses the processor — the plugin
 // adapter and the headless tests alike. After the class so the editor header
 // sees a complete definition; its re-include of this file is a no-op.
+// Editor-only: excluded from headless WASM DSP builds (see PULP_HEADLESS).
+#if !PULP_HEADLESS
 #include "chorus_editor.hpp"
+#endif

@@ -5,3 +5,8 @@ build-*/
 *.o
 *.a
 compile_commands.json
+
+# Web demo build + generated site output (never commit .wasm / generated JS).
+web/build/
+docs/
+_site/

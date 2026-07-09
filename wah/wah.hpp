@@ -14,7 +14,11 @@
 // effect source was read for the DSP.
 
 #include <pulp/format/processor.hpp>
+// Headless WASM DSP builds curate out core/view (canvas/Skia/text-shaping),
+// so every editor reference below is gated on PULP_HEADLESS.
+#if !PULP_HEADLESS
 #include <pulp/view/view.hpp>
+#endif
 #include <pulp/signal/biquad.hpp>
 
 #include <algorithm>
@@ -44,13 +48,19 @@ inline constexpr float kWahMaxHz = 1300.0f;
 // Defined out-of-line in wah_editor.hpp (included at the bottom of this file).
 // Forward-declared so create_view() hands the host the same dark Ink &
 // Signal editor the screenshot tests render.
+// Editor-only: excluded from headless WASM DSP builds (see PULP_HEADLESS).
+#if !PULP_HEADLESS
 std::unique_ptr<view::View> build_wah_editor(state::StateStore& store);
+#endif
 
 class WahProcessor : public format::Processor {
 public:
     // Hand the host our dark Ink & Signal editor; the framework owns the
     // returned tree and may call this once per attached editor window.
+// Editor-only: excluded from headless WASM DSP builds (see PULP_HEADLESS).
+#if !PULP_HEADLESS
     std::unique_ptr<view::View> create_view() override { return build_wah_editor(state()); }
+#endif
 
     format::PluginDescriptor descriptor() const override {
         return {.name = "Wah-Wah", .manufacturer = "Pulp Examples",
@@ -216,4 +226,7 @@ inline std::unique_ptr<format::Processor> create_wah() {
 // create_view() override links in every TU that uses the processor — the
 // plugin adapter and the headless tests alike. After the class so the editor
 // header sees a complete definition; its re-include of this file is a no-op.
+// Editor-only: excluded from headless WASM DSP builds (see PULP_HEADLESS).
+#if !PULP_HEADLESS
 #include "wah_editor.hpp"
+#endif

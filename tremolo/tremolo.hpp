@@ -15,7 +15,11 @@
 // third-party DSP source was read or transcribed).
 
 #include <pulp/format/processor.hpp>
+// Headless WASM DSP builds curate out core/view (canvas/Skia/text-shaping),
+// so every editor reference below is gated on PULP_HEADLESS.
+#if !PULP_HEADLESS
 #include <pulp/view/view.hpp>
+#endif
 
 #include <algorithm>
 #include <cmath>
@@ -47,7 +51,10 @@ enum class TremoloWaveform : int {
 // Defined out-of-line in tremolo_editor.hpp (included at the bottom of this
 // file). Forward-declared here so create_view() can hand the host the same
 // dark Ink & Signal editor the screenshot tests render.
+// Editor-only: excluded from headless WASM DSP builds (see PULP_HEADLESS).
+#if !PULP_HEADLESS
 std::unique_ptr<view::View> build_tremolo_editor(state::StateStore& store);
+#endif
 
 class TremoloProcessor : public format::Processor {
 public:
@@ -97,9 +104,12 @@ public:
 
     // Hand the host our dark Ink & Signal editor. The framework owns the
     // returned tree and may call this once per attached editor window.
+// Editor-only: excluded from headless WASM DSP builds (see PULP_HEADLESS).
+#if !PULP_HEADLESS
     std::unique_ptr<view::View> create_view() override {
         return build_tremolo_editor(state());
     }
+#endif
 
     void process(audio::BufferView<float>& output,
                  const audio::BufferView<const float>& input,
@@ -200,4 +210,7 @@ inline std::unique_ptr<format::Processor> create_tremolo() {
 // plugin adapter and the headless tests alike. Placed after the class so the
 // editor header (which needs TremoloProcessor's param enum) sees a complete
 // definition; the header guard makes its own re-include of this file a no-op.
+// Editor-only: excluded from headless WASM DSP builds (see PULP_HEADLESS).
+#if !PULP_HEADLESS
 #include "tremolo_editor.hpp"
+#endif

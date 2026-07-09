@@ -12,7 +12,11 @@
 // the README.
 
 #include <pulp/format/processor.hpp>
+// Headless WASM DSP builds curate out core/view (canvas/Skia/text-shaping),
+// so every editor reference below is gated on PULP_HEADLESS.
+#if !PULP_HEADLESS
 #include <pulp/view/view.hpp>
+#endif
 
 #include <algorithm>
 #include <array>
@@ -39,7 +43,10 @@ enum class DistType : int {
 };
 
 // Defined out-of-line in distortion_editor.hpp (included at the bottom).
+// Editor-only: excluded from headless WASM DSP builds (see PULP_HEADLESS).
+#if !PULP_HEADLESS
 std::unique_ptr<view::View> build_distortion_editor(state::StateStore& store);
+#endif
 
 // Four memoryless transfer functions. Each shapes a single sample (already
 // scaled by the input gain) and bounds/folds it differently:
@@ -117,7 +124,10 @@ struct DistToneShelf {
 
 class DistortionProcessor : public format::Processor {
 public:
+// Editor-only: excluded from headless WASM DSP builds (see PULP_HEADLESS).
+#if !PULP_HEADLESS
     std::unique_ptr<view::View> create_view() override { return build_distortion_editor(state()); }
+#endif
 
     format::PluginDescriptor descriptor() const override {
         return {.name = "Distortion", .manufacturer = "Pulp Examples",
@@ -194,4 +204,7 @@ inline std::unique_ptr<format::Processor> create_distortion() {
 
 } // namespace pulp::examples::classic
 
+// Editor-only: excluded from headless WASM DSP builds (see PULP_HEADLESS).
+#if !PULP_HEADLESS
 #include "distortion_editor.hpp"
+#endif

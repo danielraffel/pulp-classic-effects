@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pulp — Classic Effects Gallery</title>
+<link rel="stylesheet" href="player/tokens.css">
+<link rel="stylesheet" href="player/fonts.css">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg-surface);color:var(--text-primary);
+       font:14px/1.5 var(--font-family-native)}
+  .wrap{max-width:860px;margin:0 auto;padding:48px 20px 80px}
+  header h1{margin:0 0 6px;font-size:22px;font-weight:400}
+  header p{margin:0 0 32px;color:var(--text-secondary);font-size:13px;max-width:620px;line-height:1.6}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}
+  .card{background:var(--bg-primary);border:1px solid var(--control-border);border-radius:10px;
+        padding:18px 18px 16px;display:flex;flex-direction:column;gap:8px;
+        text-decoration:none;color:inherit;transition:border-color .15s,transform .15s}
+  .card:hover{border-color:var(--accent-primary);transform:translateY(-2px)}
+  .card .tag{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-secondary)}
+  .card h2{margin:0;font-size:15px}
+  .card p{margin:0;color:var(--text-secondary);font-size:12.5px;flex:1;line-height:1.5}
+  .card .go{color:var(--accent-primary);font-size:12px;letter-spacing:.06em;margin-top:4px}
+  footer{margin-top:40px;color:var(--text-secondary);font-size:12px;line-height:1.7}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Pulp Classic Effects</h1>
+    <p>Fifteen classic audio effects running right here in your browser. Each one runs a
+       short backing loop through itself so you can hear what it does — or feed it your
+       microphone. Nothing is uploaded; it all runs on your machine.</p>
+  </header>
+  <div class="grid" id="grid"></div>
+  <footer>
+    Pick a card to open it, then click <b>Start</b> to make sound. Switch the audio source
+    between the built-in loop and your microphone.
+  </footer>
+</div>
+<script>
+const plugins = [
+  { dir:"chorus", tag:"Sound effect", name:"Chorus", desc:"Layers slightly detuned copies of the sound to make it thicker and shimmering." },
+  { dir:"compressor-expander", tag:"Sound effect", name:"Compressor / Expander", desc:"Evens out loud and quiet parts — or exaggerates the difference. Watch the meter." },
+  { dir:"delay", tag:"Sound effect", name:"Delay", desc:"Repeats the sound after a short gap, each echo quieter than the last." },
+  { dir:"distortion", tag:"Sound effect", name:"Distortion", desc:"Pushes the signal until it clips, adding grit and harmonics." },
+  { dir:"flanger", tag:"Sound effect", name:"Flanger", desc:"A sweeping, jet-plane whoosh, made by mixing the sound with a tiny moving delay." },
+  { dir:"panning", tag:"Sound effect", name:"Panning", desc:"Moves the sound between the left and right speakers." },
+  { dir:"parametric-eq", tag:"Sound effect", name:"Parametric EQ", desc:"Boosts or cuts one band of frequencies. Pick the frequency, width and amount." },
+  { dir:"phaser", tag:"Sound effect", name:"Phaser", desc:"A swirling sweep created by shifting the phase of the sound in stages." },
+  { dir:"ping-pong", tag:"Sound effect", name:"Ping-Pong Delay", desc:"Echoes that bounce back and forth between the left and right speakers." },
+  { dir:"pitch-shift", tag:"Sound effect", name:"Pitch Shift", desc:"Moves the sound up or down in pitch without changing its speed." },
+  { dir:"ring-mod", tag:"Sound effect", name:"Ring Modulator", desc:"Multiplies the sound by a tone, giving it a metallic, bell-like edge." },
+  { dir:"robotization", tag:"Sound effect", name:"Robotization", desc:"Flattens the pitch to a monotone, so anything sounds like a robot." },
+  { dir:"tremolo", tag:"Sound effect", name:"Tremolo", desc:"Turns the volume up and down over and over, giving a pulsing wobble." },
+  { dir:"vibrato", tag:"Sound effect", name:"Vibrato", desc:"Wavers the pitch up and down, like a singer holding a note." },
+  { dir:"wah", tag:"Sound effect", name:"Wah", desc:"A sweeping filter that opens and closes — the classic “wah” sound." },
+];
+const grid = document.getElementById("grid");
+for (const p of plugins) {
+  const a = document.createElement("a");
+  a.className = "card";
+  a.href = `${p.dir}/index.html`;
+  a.innerHTML =
+    `<span class="tag">${p.tag}</span>` +
+    `<h2>${p.name}</h2>` +
+    `<p>${p.desc}</p>` +
+    `<span class="go">▶ Open demo</span>`;
+  grid.appendChild(a);
+}
+</script>
+</body>
+</html>

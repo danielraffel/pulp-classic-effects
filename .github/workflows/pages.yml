@@ -1,0 +1,128 @@
+name: Build & Deploy Web Demos
+
+# Builds the 15 classic-effect plugins to headless WAMv2 (WebAssembly +
+# AudioWorklet) and publishes them to GitHub Pages. No cross-origin isolation is
+# required (the build is single-threaded, so no SharedArrayBuffer, so no
+# COOP/COEP), which is why stock GitHub Pages can host it.
+#
+# NOTE (one-time manual step): in repo Settings → Pages, set "Build and
+# deployment" → Source to "GitHub Actions". Until that toggle is flipped,
+# deploy-pages will fail even though the build is green.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      # Anything that can change the DSP or the packaging.
+      - 'web/**'
+      - 'scripts/build-web.sh'
+      - '.github/workflows/pages.yml'
+      - 'chorus/**'
+      - 'compressor-expander/**'
+      - 'delay/**'
+      - 'distortion/**'
+      - 'flanger/**'
+      - 'panning/**'
+      - 'parametric-eq/**'
+      - 'phaser/**'
+      - 'ping-pong/**'
+      - 'pitch-shift/**'
+      - 'ring-mod/**'
+      - 'robotization/**'
+      - 'tremolo/**'
+      - 'vibrato/**'
+      - 'wah/**'
+  workflow_dispatch:
+  # Weekly rebuild against the PINNED pulp ref so drift (e.g. an ABI change on
+  # pulp main we have not repinned to, or a toolchain regression) surfaces as a
+  # RED build here instead of a silently dead site.
+  schedule:
+    - cron: '0 6 * * 1'   # Mondays 06:00 UTC
+
+# ── Pinned refs ──────────────────────────────────────────────────────────────
+# Pinned so a build is reproducible and drift is visible. Bump deliberately.
+env:
+  # pulp SOURCE checkout — PulpWam.cmake compiles core/*/src directly, so an
+  # installed SDK is not enough.
+  #
+  # PIN CAVEAT (must be repointed before CI can go green): this pin is the exact
+  # pulp tree the web build was verified against locally. It is the web-ABI
+  # working branch that ADDS core/format/src/wasm/wam-scope.mjs (the player
+  # imports it — build-web.sh copies it into player/). As of 2026-07-08 that
+  # commit is NOT yet on danielraffel/pulp main (eededa3c), whose wasm dir has
+  # NO wam-scope.mjs, so a CI clone of main would 404 on the scope copy. Repoint
+  # PULP_REF to the merge commit once the web-ABI branch lands on
+  # danielraffel/pulp main (or set PULP_REPO to the fork that hosts it).
+  PULP_REPO: danielraffel/pulp
+  PULP_REF: d86f57db96be782753f240e827f00fbf753f3449
+  # choc headers (MIDI only, for the headless DSP). Exact ref pulp's own
+  # dependency manifest registers (tools/cmake/PulpDependencies.cmake pins choc
+  # to danielraffel/choc @ df148a41 — an interim fork of Tracktion/choc#64), so
+  # we get the identical MIDI headers pulp builds against. When pulp repoints
+  # choc back to Tracktion/choc upstream, update these two lines to match.
+  CHOC_REPO: danielraffel/choc
+  CHOC_REF: df148a41a6bc9cbd67727532c4d5c9d8aa6d5d60
+
+# Permissions required by actions/deploy-pages.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only one Pages deploy at a time; let a newer run supersede an in-flight one.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout classic effects
+        uses: actions/checkout@v4
+
+      - name: Shallow-clone pulp source (pinned)
+        run: |
+          git clone --no-checkout --filter=blob:none \
+            "https://github.com/${PULP_REPO}.git" pulp-src
+          git -C pulp-src fetch --depth 1 origin "${PULP_REF}"
+          git -C pulp-src checkout --detach FETCH_HEAD
+
+      - name: Shallow-clone choc headers (pinned)
+        run: |
+          git clone --no-checkout --filter=blob:none \
+            "https://github.com/${CHOC_REPO}.git" choc-src
+          git -C choc-src fetch --depth 1 origin "${CHOC_REF}"
+          git -C choc-src checkout --detach FETCH_HEAD
+
+      - name: Set up Emscripten (pinned 6.0.2)
+        # PIN IS MANDATORY. emsdk 3.1.74's -sSINGLE_FILE glue decodes the
+        # embedded wasm with atob(), which does NOT exist in
+        # AudioWorkletGlobalScope — the worklet aborts and the plugin is silent
+        # while the UI looks fine. emcc 6.0.2 emits its own base64 decoder and
+        # works. (pulp's own web-plugins.yml uses `version: latest`, a live trap.)
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 6.0.2
+
+      - name: Build web demos
+        env:
+          PULP_ROOT: ${{ github.workspace }}/pulp-src
+          CHOC_INCLUDE: ${{ github.workspace }}/choc-src
+        run: bash scripts/build-web.sh
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
