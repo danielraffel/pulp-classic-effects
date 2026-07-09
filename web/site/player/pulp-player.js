@@ -224,8 +224,11 @@ function synthLoop(ctx) {
     for (let i = s0; i < s1; i++) {
       const t = (i - s0) / sr;
       const f = 120 * Math.exp(-t * 18) + 45;
-      L[i] += Math.sin(2 * Math.PI * f * t) * Math.exp(-t * 9) * 0.7;
-      R[i] += Math.sin(2 * Math.PI * f * t) * Math.exp(-t * 9) * 0.7;
+      // 0.45, not 0.7: the loop is normalised by its peak, and a loud kick
+      // drags the arp and bass down with it — you end up hearing percussion
+      // with a tone buried under it.
+      const v = Math.sin(2 * Math.PI * f * t) * Math.exp(-t * 9) * 0.45;
+      L[i] += v; R[i] += v;
     }
   };
   // Am, F, C, G — two chords per bar. Arp pattern over each chord's four eighths.
@@ -236,9 +239,9 @@ function synthLoop(ctx) {
       const chord = chords[(bar * 2 + half) % chords.length];
       for (let e = 0; e < 4; e++) {
         const t = (bar * 4 + half * 2) * beat + e * eighth;
-        add(t, eighth * 1.6, chord[e % chord.length] + 12, 0.18);
-        if (e === 0) add(t, beat * 1.9, chord[0] - 12, 0.12); // bass
-        noise(t + eighth * 0.5, 0.05, 0.05, 60);              // hat
+        add(t, eighth * 1.6, chord[e % chord.length] + 12, 0.26);
+        if (e === 0) add(t, beat * 1.9, chord[0] - 12, 0.17); // bass
+        noise(t + eighth * 0.5, 0.05, 0.03, 70);              // hat (the "brush tap")
         if (e % 2 === 0) kick(t);
         step++;
       }
@@ -247,7 +250,9 @@ function synthLoop(ctx) {
   // Normalise to avoid clipping.
   let peak = 0;
   for (let i = 0; i < len; i++) peak = Math.max(peak, Math.abs(L[i]));
-  if (peak > 0) { const g = 0.9 / peak; for (let i = 0; i < len; i++) { L[i] *= g; R[i] *= g; } }
+  // Normalise to 0.7, not 0.9: nearly every effect here adds gain (delay
+  // feedback, filter resonance, compressor makeup), so the source needs room.
+  if (peak > 0) { const g = 0.7 / peak; for (let i = 0; i < len; i++) { L[i] *= g; R[i] *= g; } }
   return buf;
 }
 
@@ -333,6 +338,7 @@ export async function mountDemo(opts) {
   // ——— shared demo state
   const S = {
     ctx: null, wam: null, synth: null, synthCtx: null, analyser: null,
+    inputGain: opts.inputGain ?? 1, inputTrim: null, limiter: null,
     meterWidget: null, onEvent: null, seedMemo: null, shellMode: null,
     starting: false, handlersInstalled: false, meterToken: 0,
     loopBuffer: null, loopSource: null, micStream: null, micNode: null,
@@ -676,7 +682,7 @@ export async function mountDemo(opts) {
       if (!S.loopBuffer) S.loopBuffer = synthLoop(S.ctx);
       const src = S.ctx.createBufferSource();
       src.buffer = S.loopBuffer; src.loop = true;
-      src.connect(S.wam.audioNode); src.start();
+      sourceTrim(S, src); src.start();
       S.loopSource = src;
       status(`${S.wam.descriptor.name} — loop running`);
     } else if (kind === "mic") {
@@ -685,7 +691,7 @@ export async function mountDemo(opts) {
           audio: { echoCancellation: false, autoGainControl: false, noiseSuppression: false } });
         S.micStream = stream;
         S.micNode = S.ctx.createMediaStreamSource(stream);
-        S.micNode.connect(S.wam.audioNode);
+        sourceTrim(S, S.micNode);
         status(`${S.wam.descriptor.name} — microphone live`);
       } catch (err) {
         console.warn("mic denied:", err);
@@ -990,6 +996,22 @@ function connectOutput(S) {
   S.analyser.connect(S.limiter);
 }
 
+
+  // Source trim, in front of the plugin. Some effects add a lot of gain by
+  // design — wah's "Gain" is not makeup gain at all, it is the resonance factor
+  // of the resonant-lowpass (it appears only as tan(wc/2)/g in the denominator),
+  // so turning it down does not tame the effect, it REMOVES the wah. The right
+  // knob to turn is the source level, exactly as you would gain-stage in a DAW.
+  // Set per demo with `inputGain` (linear).
+  function sourceTrim(S, node) {
+    if (!S.inputTrim) {
+      S.inputTrim = S.ctx.createGain();
+      S.inputTrim.gain.value = S.inputGain ?? 1;
+      S.inputTrim.connect(S.wam.audioNode);
+    }
+    node.connect(S.inputTrim);
+  }
+
   // Wire the audio graph to the already-built shell (called from start()).
   async function activateAudio(mode) {
     if (mode === "instrument") {
@@ -1104,7 +1126,7 @@ function connectOutput(S) {
     await S.ctx.close();
     if (S.synthCtx) { try { await S.synthCtx.close(); } catch {} }
     S.ctx = null; S.wam = null; S.synth = null; S.synthCtx = null; S.analyser = null;
-    S.limiter = null;   // belongs to the closed context; rebuilt on next start
+    S.limiter = null; S.inputTrim = null;   // belong to the closed context; rebuilt on next start
     S.chainSynth = false; S.starting = false;
     demo.started = false;
     $("#overlay").style.display = "flex";
@@ -1116,6 +1138,11 @@ function connectOutput(S) {
   window.__start = start;
   // Test seam: gain reduction the safety limiter is applying, in dB (0 = idle).
   window.__limiterReductionDb = () => S.limiter?.reduction ?? null;
+  // Test seam: read/replace the source trim while running, to calibrate a demo.
+  window.__inputTrim = (v) => {
+    if (v !== undefined && S.inputTrim) S.inputTrim.gain.value = v;
+    return S.inputTrim?.gain.value ?? null;
+  };
   window.__player = {
     setParam: (id, v) => S.wam?.setParameterValue(id, v),
     getParam: (id) => S.wam?.getParameterValue(id),

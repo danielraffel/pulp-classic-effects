@@ -9,9 +9,16 @@ mountDemo({
   subtitle: "A sweeping filter that opens and closes — the classic “wah” sound.",
   dspUrl: "./wam-dsp.js", processorUrl: "./wam-processor.js",
   mode: "audio-effect", paramRows: 3,
-  // The plugin defaults Gain to +20 dB — the top of its 0..20 dB range — on a
-  // resonant filter (Q defaults to 10). Musically defensible in a DAW where you
-  // set your own level; far too loud to open a web page on. Start at unity.
-  initialParams: { "Gain": 0 },
+  // wah's "Gain" is NOT makeup gain — it is the resonance factor of the
+  // resonant-lowpass (it enters only as tan(wc/2)/g in the denominator), and
+  // it defaults to +20 dB (g = 10) in both the book's reference and pulp's
+  // clean-room port. Turning it down doesn't tame the wah, it removes it. So
+  // keep the plugin's own default and gain-stage the SOURCE instead, which is
+  // what you'd do in a DAW.
+  // Measured against the backing loop: raw peak 0.34 at 0.08, limiter never
+  // engages. Do not raise it — the envelope follower (LFO/Env Mix 0.8) makes
+  // this nonlinear: at 0.1 the peak jumps to 1.6 as the sweep lands in the
+  // resonant band.
+  inputGain: 0.08,
 });
 </script>
