@@ -1,10 +1,10 @@
-# WAM vs WebCLAP: how the web demos are built
+# WAM vs WCLAP: how the web demos are built
 
 Every effect in this repo has **two** live web demos, and both run the *same* C++
 audio engine that ships in the native VST3 / AU / CLAP builds:
 
 - **WAM gallery** — <https://danielraffel.github.io/pulp-classic-effects/>
-- **WebCLAP gallery** — <https://pulp-wclap-demos.pages.dev/classic-effects/>
+- **WCLAP gallery** — <https://pulp-wclap-demos.pages.dev/classic-effects/>
 
 They are two different ways to get one `Processor` running in a browser. This
 document explains what each one is, how it is built, what it shares with the
@@ -25,7 +25,7 @@ same source is compiled — unchanged — to **five** targets:
 | AU / AUv3 | native compiler | Audio Unit |
 | CLAP (native) | native compiler | CLAP |
 | **WAM** (web) | **Emscripten** | Web Audio Module v2 |
-| **WebCLAP** (web) | **wasi-sdk** | CLAP (over WebAssembly) |
+| **WCLAP** (web) | **wasi-sdk** | CLAP (over WebAssembly) |
 
 The DSP — waveshapers, filters, delay lines, FFT processing, state
 (de)serialization — is byte-for-byte the same code in all five. What changes per
@@ -61,12 +61,16 @@ Pages — with **no special HTTP headers**. That is why the WAM gallery lives on
 
 ---
 
-## WebCLAP
+## WCLAP
+
+**WCLAP** — Pulp's build of the *WebCLAP* browser plugin format (a CLAP plugin
+compiled to WebAssembly and hosted in the browser; upstream the format is called
+**WebCLAP**). This doc and the demo UI use **WCLAP** as the short display name.
 
 **What it is.** The *same* `Processor`, but compiled to expose the real
 **[CLAP](https://cleveraudio.org/) ABI** to a CLAP host that itself lives inside
 the audio worklet. Instead of adapting the engine to Web Audio's own plugin shape
-(as WAM does), WebCLAP loads the plugin the way a native CLAP host would — through
+(as WAM does), WCLAP loads the plugin the way a native CLAP host would — through
 `clap_entry`, factory, `clap_plugin`, the CLAP extension structs — only the whole
 thing is running in WebAssembly.
 
@@ -76,7 +80,7 @@ thing is running in WebAssembly.
   `-pthread --shared-memory`.
 - It reuses the **exact same** native CLAP entry point the desktop CLAP build
   uses (`core/format/include/pulp/format/clap_entry.hpp`, ~663 lines, shared), and
-  adds a small WebCLAP shim (`core/format/include/pulp/format/web/wclap_adapter.hpp`,
+  adds a small WCLAP shim (`core/format/include/pulp/format/web/wclap_adapter.hpp`,
   ~83 lines) that exports the wasm memory-allocation symbols (`malloc` / `free` /
   `cabi_realloc`) the host needs. Both are SDK-level and written once.
 - Per effect, the entry file is a ~4-line wrapper:
@@ -98,7 +102,7 @@ thing is running in WebAssembly.
 isolated**: it has to be served with `COOP: same-origin` + `COEP: require-corp`
 (and appropriate CORP on subresources). That requires a host that can set those
 headers — [Cloudflare Pages](https://pages.cloudflare.com/) does it directly (which
-is why the WebCLAP gallery lives on `pages.dev`), or a
+is why the WCLAP gallery lives on `pages.dev`), or a
 [`coi-serviceworker`](https://github.com/gzuidhof/coi-serviceworker) shim can add
 them on a host like GitHub Pages that otherwise can't.
 
@@ -106,7 +110,7 @@ them on a host like GitHub Pages that otherwise can't.
 
 ## Side by side
 
-| | WAM v2 | WebCLAP |
+| | WAM v2 | WCLAP |
 |---|---|---|
 | Web toolchain | Emscripten | wasi-sdk (`wasm32-wasi-threads`) |
 | ABI presented in the browser | Web Audio Module v2 | real CLAP ABI |
@@ -130,7 +134,7 @@ them on a host like GitHub Pages that otherwise can't.
   from how a native CLAP host actually loads the plugin.
 - Single-threaded only; no `SharedArrayBuffer`-based parallelism.
 
-**WebCLAP leans toward:**
+**WCLAP leans toward:**
 
 - *The real CLAP ABI.* The effect is loaded through the same `clap_entry` /
   factory / extension structs a native CLAP host uses — the closest web analog to
@@ -147,7 +151,7 @@ them on a host like GitHub Pages that otherwise can't.
 
 Neither is the "production" answer and neither is a toy: they are two valid ways to
 put the identical engine in a browser, trading **hosting simplicity** (WAM) against
-**ABI fidelity + threading** (WebCLAP).
+**ABI fidelity + threading** (WCLAP).
 
 ---
 
@@ -165,14 +169,14 @@ Concretely, measured from this repo (and the SDK it consumes):
 
 | Piece | File | Lines | Shared with native? | Shared across web targets? |
 |---|---|---:|---|---|
-| Audio engine (DSP) | `chorus/chorus.hpp` | 285 | **yes — identical source** | yes (WAM + WebCLAP) |
+| Audio engine (DSP) | `chorus/chorus.hpp` | 285 | **yes — identical source** | yes (WAM + WCLAP) |
 | Native CLAP entry | `chorus/clap_entry.cpp` | 3 | native only | — |
-| WebCLAP entry wrapper | `PULP_WCLAP_PLUGIN(...)` | ~4 | reuses native CLAP entry | WebCLAP only |
+| WCLAP entry wrapper | `PULP_WCLAP_PLUGIN(...)` | ~4 | reuses native CLAP entry | WCLAP only |
 | Native editor (Skia) | `chorus/chorus_editor.hpp` | 37 | native only (not compiled to web) | — |
 | Web control recreation | `web/site/chorus/index.html` config | ~8 | — | shared runtime, per-page config |
 
 The 285-line `chorus.hpp` is the entire sound; every target — native VST3, AU,
-CLAP, plus WAM and WebCLAP — runs that exact file. Adding the WebCLAP target to an
+CLAP, plus WAM and WCLAP — runs that exact file. Adding the WCLAP target to an
 effect that already ships native CLAP costs the **~4-line** `PULP_WCLAP_PLUGIN`
 wrapper, nothing more.
 
@@ -185,7 +189,7 @@ wrapper, nothing more.
 | Native editor (Skia) | `tremolo/tremolo_editor.hpp` | 27 | native only |
 
 Same story at a slightly smaller scale: 203 lines of engine shared verbatim across
-all five targets, a 3-line native CLAP entry, and the ~4-line WebCLAP wrapper.
+all five targets, a 3-line native CLAP entry, and the ~4-line WCLAP wrapper.
 
 ### The web editor is a recreation, shared across demos
 
@@ -199,13 +203,13 @@ effect's page (`web/site/<effect>/index.html`) is a ~30-line file that is mostly
 
 ### Net
 
-- **Audio engine: 100% shared** across native VST3/AU/CLAP, WAM, and WebCLAP — one
+- **Audio engine: 100% shared** across native VST3/AU/CLAP, WAM, and WCLAP — one
   `.hpp` per effect, no per-target forks.
-- **Per-target entry code is tiny** — 3 lines for native CLAP, ~4 for WebCLAP.
+- **Per-target entry code is tiny** — 3 lines for native CLAP, ~4 for WCLAP.
 - **The editor is the one part not shared to the web**, and even there the web
   recreation is a shared ~1,385-line runtime plus ~8 lines of per-effect config,
   not a bespoke rebuild per effect.
 
-So the choice between WAM and WebCLAP does not change *what the effect is* — the
+So the choice between WAM and WCLAP does not change *what the effect is* — the
 same engine is running either way. It changes only the browser-side ABI and,
 consequently, where you can host it.
