@@ -155,6 +155,30 @@ put the identical engine in a browser, trading **hosting simplicity** (WAM) agai
 
 ---
 
+## One player, two ABIs — how they stay consistent
+
+The two demos differ only in the backend; the **interface is deliberately the
+same**. Both the WAM and the WCLAP demo mount the **same shared player** (Pulp's
+`@danielraffel/web-player`) — a WAM DSP module on one side, a worklet-resident CLAP
+host over a threaded `.wasm` on the other, behind one common player shell.
+
+Because of that, the demo's user-facing behaviors are defined **once, in the
+player**, and both ABIs inherit them identically instead of each re-implementing
+(and drifting on) them:
+
+- **No autoplay** — sound starts only after a click-to-start overlay.
+- **iOS/mobile touch hygiene** — a tap-drag on a control never selects text or pops
+  the iOS callout, while genuine text-entry surfaces (a log, a text field) stay
+  selectable.
+- **Keyboard** — on-screen and computer-keyboard play, with a focus guard so typing
+  in a text field never fires notes.
+- **Scope, meter, and a safety limiter**, plus the token-faithful Ink & Signal widgets.
+
+So an effect's WAM demo and its WCLAP twin look and behave the same by construction;
+any difference between them is a player bug, not a per-demo tweak.
+
+---
+
 ## How much is shared with the native plugin
 
 The audio engine is **100% shared** — the `Processor` `.hpp` is the same source
