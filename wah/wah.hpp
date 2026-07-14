@@ -78,7 +78,7 @@ public:
         // Logarithmic frequency sweep: centre the normalized midpoint on the
         // geometric mean of [200, 1300] so the curve behaves like truce's log range.
         store.add_parameter({.id = kWahFreq, .name = "Frequency", .unit = "Hz",
-                             .range = state::ParamRange::with_centre(200.0f, 1300.0f, 510.0f, 300.0f)});
+                             .range = state::ParamRange::with_center(200.0f, 1300.0f, 510.0f, 300.0f)});
         store.add_parameter({.id = kWahQ, .name = "Q", .unit = "",
                              .range = state::ParamRange::linear(0.1f, 20.0f, 10.0f)});
         store.add_parameter({.id = kWahGain, .name = "Gain", .unit = "dB",
