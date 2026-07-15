@@ -85,10 +85,10 @@ public:
         store.add_parameter({.id = kRmDepth, .name = "Depth", .unit = "",
                              .range = state::ParamRange::linear(0.0f, 1.0f, 0.5f)});
         // Carrier Freq, log-shaped so the dial spans 10..1000 Hz musically.
-        // with_centre derives the skew that lands the geometric midpoint
+        // with_center derives the skew that lands the geometric midpoint
         // (sqrt(10*1000) = 100 Hz) at the dial centre — a log-like sweep.
         store.add_parameter({.id = kRmFreq, .name = "Carrier Freq", .unit = "Hz",
-                             .range = state::ParamRange::with_centre(10.0f, 1000.0f, 100.0f, 200.0f)});
+                             .range = state::ParamRange::with_center(10.0f, 1000.0f, 100.0f, 200.0f)});
         // Discrete carrier waveform selector (Sine .. Sq. Sloped).
         store.add_parameter({.id = kRmWaveform, .name = "Waveform", .unit = "",
                              .range = {0.0f, static_cast<float>(static_cast<int>(Waveform::Count) - 1),

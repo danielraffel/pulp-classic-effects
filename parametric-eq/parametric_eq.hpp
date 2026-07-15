@@ -70,7 +70,7 @@ public:
     void define_parameters(state::StateStore& store) override {
         // Frequency: log-skewed 10 Hz .. 20 kHz, geometric centre, default 1.5 kHz.
         store.add_parameter({.id = kEqFreq, .name = "Freq", .unit = "Hz",
-                             .range = state::ParamRange::with_centre(
+                             .range = state::ParamRange::with_center(
                                  10.0f, 20000.0f, std::sqrt(10.0f * 20000.0f), 1500.0f)});
         // Q: linear 0.1 .. 20, default sqrt(2) (Butterworth-ish width).
         store.add_parameter({.id = kQ, .name = "Q", .unit = "",
