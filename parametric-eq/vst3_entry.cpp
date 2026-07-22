@@ -8,5 +8,5 @@ static const Steinberg::FUID ParametricEqUID(0x50554C50, 0x50617245, 0x00000001,
 
 PULP_VST3_PLUGIN(ParametricEqUID, "Parametric EQ", Steinberg::Vst::PlugType::kFx,
                  "Pulp Examples", "0.1.0",
-                 "https://github.com/danielraffel/pulp",
+                 "https://github.com/Generous-Corp/pulp",
                  pulp::examples::classic::create_parametric_eq)

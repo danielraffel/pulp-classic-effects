@@ -8,5 +8,5 @@ static const Steinberg::FUID DelayUID(0x50554C50, 0x446C6179, 0x00000001,
 
 PULP_VST3_PLUGIN(DelayUID, "Delay", Steinberg::Vst::PlugType::kFx,
                  "Pulp Examples", "0.1.0",
-                 "https://github.com/danielraffel/pulp",
+                 "https://github.com/Generous-Corp/pulp",
                  pulp::examples::classic::create_delay)
