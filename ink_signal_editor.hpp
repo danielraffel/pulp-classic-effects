@@ -55,6 +55,10 @@ struct EditorKnob {
 struct EffectEditorSpec {
     std::string title;
     std::string subtitle;
+    // Grid width in columns. 0 = single row (columns = total span). Set it to
+    // wrap controls into semantic rows — e.g. 6 puts a Type dropdown (span 2) +
+    // four knobs on one row, then the modulation group on the next.
+    int grid_cols = 0;
     // Preferred: heterogeneous controls. When non-empty this wins over `knobs`.
     std::vector<Control> controls;
     // Legacy knob-only list — each entry is treated as a Knob-kind Control.
@@ -65,11 +69,6 @@ struct EffectEditorSpec {
     std::vector<std::string> log_items;
     state::ParamID bypass_id = 0;   // 0 = no bypass row
     bool has_bypass = true;
-
-    // Grid width in columns. 0 = single row (columns = total span). Set it to
-    // wrap controls into semantic rows — e.g. 6 puts a Type dropdown (span 2) +
-    // four knobs on one row, then the modulation group on the next.
-    int grid_cols = 0;
 
     // Optional free-text field bound to NON-parameter plugin state. The
     // StateStore only holds numeric params, so a string memo is reached through
